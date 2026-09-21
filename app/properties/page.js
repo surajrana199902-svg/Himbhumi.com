@@ -1,4 +1,4 @@
-import { Properties, ConciergeAI } from '../_views'
+import { Properties, WebsiteChatbot } from '../_views'
 
 export const metadata = {
   title: 'Properties | HimBhumi Real Estates',
@@ -6,10 +6,5 @@ export const metadata = {
 }
 
 export default function PropertiesPage() {
-  return (
-    <>
-      <Properties />
-      <ConciergeAI />
-    </>
-  )
+  return <><Properties /><WebsiteChatbot /></>
 }

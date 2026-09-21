@@ -7,7 +7,6 @@ Premium real estate website for Himachal Pradesh properties — Next.js 15 (App 
 - "List Your Property" submission flow with **Email OTP verification** (Nodemailer / SMTP)
 - Admin panel: approve, reject, edit, delete, mark verified/featured (approval publishes to `properties`)
 - Listing status tracker by Listing ID (`/track`)
-- AI Concierge (OpenAI GPT-4o via Emergent LLM key)
 
 ## Run locally in VS Code
 
@@ -28,7 +27,6 @@ See `.env.example`. Key ones:
 | `DB_NAME` | Database name |
 | `NEXT_PUBLIC_BASE_URL` | Public base URL of the app |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Real email OTP delivery. If blank or the provider rejects the send, the OTP is shown on screen instead so the flow keeps working. |
-| `EMERGENT_LLM_KEY` / `OPENAI_MODEL` | AI Concierge |
 | `NEXT_PUBLIC_CLOUDINARY_*` | Optional cloud media storage; falls back to base64 storage |
 
 > Brevo note: Brevo blocks SMTP relay from unauthorized server IPs. Add your server IP under
@@ -37,7 +35,7 @@ See `.env.example`. Key ones:
 ## Structure
 ```
 app/
-  api/[[...path]]/route.js   # all backend APIs (properties, listings, inquiries, email OTP, AI)
+  api/[[...path]]/route.js   # all backend APIs (properties, listings, inquiries, email OTP)
   page.js                    # main UI (home, properties, detail, admin, listing form, tracker)
   list-your-property/page.js
   track/page.js

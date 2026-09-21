@@ -1,4 +1,4 @@
-import { ListProperty, ConciergeAI } from '../_views'
+import { ListProperty, WebsiteChatbot } from '../_views'
 
 export const metadata = {
   title: 'List your property | HimBhumi Real Estates',
@@ -6,10 +6,5 @@ export const metadata = {
 }
 
 export default function ListYourPropertyPage() {
-  return (
-    <>
-      <ListProperty />
-      <ConciergeAI />
-    </>
-  )
+  return <><ListProperty /><WebsiteChatbot /></>
 }

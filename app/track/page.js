@@ -1,4 +1,4 @@
-import { Tracker, ConciergeAI } from '../_views'
+import { Tracker, WebsiteChatbot } from '../_views'
 
 export const metadata = {
   title: 'Track your listing | HimBhumi Real Estates',
@@ -6,10 +6,5 @@ export const metadata = {
 }
 
 export default function TrackPage() {
-  return (
-    <>
-      <Tracker />
-      <ConciergeAI />
-    </>
-  )
+  return <><Tracker /><WebsiteChatbot /></>
 }
