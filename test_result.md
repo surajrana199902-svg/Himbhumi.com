@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Build a premium modern Himbhoomi real estate website for Himachal Pradesh with MongoDB-backed listings and inquiries"
+user_problem_statement: "Build a premium modern HimBhumi real estate website for Himachal Pradesh with MongoDB-backed listings and inquiries"
 backend:
   - task: "MongoDB property catalog and inquiry API"
     implemented: true
@@ -116,7 +116,7 @@ backend:
         agent: "main"
         comment: "Added UUID property seed data, location filtering, property CRUD, and inquiry persistence using MONGO_URL and DB_NAME."
 frontend:
-  - task: "Himbhoomi browse, detail, and admin experience"
+  - task: "himbhumi browse, detail, and admin experience"
     implemented: true
     working: NA
     file: "/app/app/page.js"
@@ -164,7 +164,7 @@ agent_communication:
 
 # Frontend UI testing results (testing agent, sequence 3)
 frontend:
-  - task: "Himbhoomi browse, detail, and admin experience"
+  - task: "himbhumi browse, detail, and admin experience"
     implemented: true
     working: false
     file: "/app/app/page.js"
@@ -188,12 +188,12 @@ agent_communication:
   - agent: "testing"
     message: "UI automation found a blocking 404 after the homepage discovery control: /properties?location=Baddi is not served publicly. Homepage itself passed. Because the first navigation failed, detail/inquiry/admin/mobile checks remain unverified; fix routing/rewrite and request full retest. Console/request logs captured by browser automation."
   - agent: "main"
-    message: "Added App Router entry points for /properties, /properties/[id], and /admin that reuse the Himbhoomi client app. User approved a full UI retest including mobile and inquiry submission."
+    message: "Added App Router entry points for /properties, /properties/[id], and /admin that reuse the himbhumi client app. User approved a full UI retest including mobile and inquiry submission."
 
 
 # Frontend UI retest results (testing agent, sequence 4)
 frontend:
-  - task: "Himbhoomi browse, detail, and admin experience"
+  - task: "himbhumi browse, detail, and admin experience"
     implemented: true
     working: true
     file: "/app/app/page.js"
