@@ -1,10 +1,5 @@
-import { Home, ConciergeAI } from './_views'
+import { Home, WebsiteChatbot } from './_views'
 
 export default function HomePage() {
-  return (
-    <>
-      <Home />
-      <ConciergeAI />
-    </>
-  )
+  return <><Home /><WebsiteChatbot /></>
 }

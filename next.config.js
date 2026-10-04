@@ -1,5 +1,8 @@
+const path = require('path')
+
 const nextConfig = {
   output: 'standalone',
+  outputFileTracingRoot: path.resolve(__dirname),
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -20,8 +23,8 @@ const nextConfig = {
     return config;
   },
   onDemandEntries: {
-    maxInactiveAge: 10000,
-    pagesBufferLength: 2,
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 8,
   },
   async headers() {
     return [
