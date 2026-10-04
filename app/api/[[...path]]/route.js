@@ -24,7 +24,13 @@ const starterProperties = [
 
 async function getDb() {
   if (!process.env.MONGO_URL) throw new Error('MONGO_URL is not configured')
-  if (!clientPromise) clientPromise = MongoClient.connect(process.env.MONGO_URL, { serverSelectionTimeoutMS: 3000 })
+  if (!clientPromise) {
+    clientPromise = MongoClient.connect(process.env.MONGO_URL, { serverSelectionTimeoutMS: 3000 })
+      .catch((error) => {
+        clientPromise = undefined
+        throw error
+      })
+  }
   const client = await clientPromise
   return client.db(process.env.DB_NAME)
 }
@@ -84,6 +90,11 @@ const fallbackInquiries = []
 const fallbackMessages = []
 
 function response(data, status = 200) { return NextResponse.json(data, { status }) }
+
+function databaseUnavailable(error) {
+  console.error('Persistent database operation failed:', error?.name || 'DatabaseError')
+  return response({ error: 'Database unavailable. Your changes were not saved. Please try again later.' }, 503)
+}
 
 const adminEmail = () => String(process.env.ADMIN_USERNAME || '').trim().toLowerCase()
 const adminPassword = () => String(process.env.ADMIN_PASSWORD || '')
@@ -283,23 +294,7 @@ export async function POST(request, { params }) {
       if (authError) return authError
     }
     let db
-    try { db = await getDb() } catch (databaseError) {
-      if (parts[0] === 'inquiries' && !parts[1]) {
-        if (!body.fullName || !body.mobile || !body.propertyId) return response({ error: 'Name, mobile, and property are required' }, 400)
-        const inquiry = { id: randomUUID(), ...body, createdAt: new Date().toISOString(), status: 'new' }
-        fallbackInquiries.unshift(inquiry)
-        const notification = await notifyAdminRecipients(`New property enquiry from ${inquiry.fullName}`, inquiryNotification(inquiry))
-        return response({ inquiry, notification }, 201)
-      }
-      if (parts[0] === 'messages') {
-        if (!body.to || !body.subject || !body.message) return response({ error: 'Recipient, subject, and message are required' }, 400)
-        const message = { id: randomUUID(), to: String(body.to).trim(), subject: String(body.subject).trim(), message: String(body.message).trim(), enquiryId: body.enquiryId || null, status: 'stored', createdAt: new Date().toISOString() }
-        fallbackMessages.unshift(message)
-        const notification = await notifyAdminRecipients(`New HimBhumi message: ${message.subject}`, messageNotification(message))
-        return response({ message, notification, source: 'demo-storage' }, 201)
-      }
-      throw databaseError
-    }
+    try { db = await getDb() } catch (databaseError) { return databaseUnavailable(databaseError) }
     if (parts[0] === 'inquiries') {
       if (!body.fullName || !body.mobile || !body.propertyId) return response({ error: 'Name, mobile, and property are required' }, 400)
       const inquiry = { id: randomUUID(), ...body, createdAt: new Date().toISOString(), status: 'new' }
@@ -322,9 +317,7 @@ export async function POST(request, { params }) {
       try {
         await db.collection('messages').insertOne(message)
       } catch (databaseError) {
-        fallbackMessages.unshift(message)
-        const notification = await notifyAdminRecipients(`New HimBhumi message: ${message.subject}`, messageNotification(message))
-        return response({ message: serialize(message), notification, source: 'demo-storage' }, 201)
+        return databaseUnavailable(databaseError)
       }
       const notification = await notifyAdminRecipients(`New HimBhumi message: ${message.subject}`, messageNotification(message))
       return response({ message: serialize(message), notification }, 201)
@@ -404,27 +397,7 @@ export async function PUT(request, { params }) {
     const parts = routeParams?.path || []
     const body = await request.json()
     let db
-    try { db = await getDb() } catch (databaseError) {
-      if (parts[0] === 'inquiries' && parts[1]) {
-        const inquiry = fallbackInquiries.find((item) => item.id === parts[1])
-        if (!inquiry) return response({ error: 'Enquiry not found' }, 404)
-        Object.assign(inquiry, body, { updatedAt: new Date().toISOString() })
-        return response({ success: true })
-      }
-      if (parts[0] === 'messages' && parts[1]) {
-        const message = fallbackMessages.find((item) => item.id === parts[1])
-        if (!message) return response({ error: 'Message not found' }, 404)
-        Object.assign(message, body, { updatedAt: new Date().toISOString() })
-        return response({ success: true })
-      }
-      if (parts[0] === 'properties' && parts[1]) {
-        const property = fallbackProperties.find((item) => item.id === parts[1])
-        if (!property) return response({ error: 'Property not found' }, 404)
-        Object.assign(property, body, { updatedAt: new Date().toISOString() })
-        return response({ property })
-      }
-      throw databaseError
-    }
+    try { db = await getDb() } catch (databaseError) { return databaseUnavailable(databaseError) }
     if (parts[0] === 'inquiries' && parts[1]) {
       const updates = { ...body, updatedAt: new Date().toISOString() }
       const result = await db.collection('inquiries').updateOne({ id: parts[1] }, { $set: updates })
@@ -462,21 +435,7 @@ export async function DELETE(request, { params }) {
     const routeParams = await params
     const parts = routeParams?.path || []
     let db
-    try { db = await getDb() } catch (databaseError) {
-      if (parts[0] === 'messages' && parts[1]) {
-        const index = fallbackMessages.findIndex((item) => item.id === parts[1])
-        if (index < 0) return response({ error: 'Message not found' }, 404)
-        fallbackMessages.splice(index, 1)
-        return response({ success: true })
-      }
-      if (parts[0] === 'properties' && parts[1]) {
-        const index = fallbackProperties.findIndex((item) => item.id === parts[1])
-        if (index < 0) return response({ error: 'Property not found' }, 404)
-        fallbackProperties.splice(index, 1)
-        return response({ success: true })
-      }
-      throw databaseError
-    }
+    try { db = await getDb() } catch (databaseError) { return databaseUnavailable(databaseError) }
     if (parts[0] === 'messages' && parts[1]) {
       const result = await db.collection('messages').deleteOne({ id: parts[1] })
       return result.deletedCount ? response({ success: true }) : response({ error: 'Message not found' }, 404)
