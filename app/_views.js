@@ -1,22 +1,67 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Compass, Eye, EyeOff, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, Play, Share2, Sparkles, Trees, X, Upload, Trash2, ShieldCheck, Star, Loader2, FileText, Video, Camera, BadgeCheck, Home as HomeIcon, Copy } from 'lucide-react'
+import LocationManager from '../components/location-manager'
+import LocationSearch from '../components/location-search'
+import FavoriteButton from '../components/favorite-button'
+import PropertyFilters from '../components/property-filters'
+import VirtualTourViewer from '../components/virtual-tour-viewer'
+import AgentPortal from '../components/agent-portal'
+import GoogleSignInButton from '../components/google-sign-in-button'
+import AuthPageShell from '../components/auth-page-shell'
+import InboxWorkspace from '../components/inbox-workspace'
+import useLocationCatalog from '../hooks/use-location-catalog'
+import { INDIAN_STATES_AND_UNION_TERRITORIES, LEGACY_LOCATION_NAMES } from '../lib/location-data'
 
-const CATEGORIES = ['Residential plot', 'Commercial plot', 'House', 'Apartment / Flat', 'Villa', 'Commercial property', 'Shop', 'Office', 'Warehouse', 'Agricultural land', 'Other']
+const CATEGORIES = ['Residential plot', 'Commercial plot', 'House', 'Apartment / Flat', 'Villa', 'Studio', 'Commercial property', 'Shop', 'Office', 'Warehouse', 'Agricultural land', 'Other']
 const LISTING_TYPES = ['For sale', 'For rent', 'For lease']
 const AREA_UNITS = ['sq. ft.', 'sq. yards', 'marla', 'kanal', 'bigha', 'acre']
-const HP_DISTRICTS = ['Bilaspur', 'Chamba', 'Hamirpur', 'Kangra', 'Kinnaur', 'Kullu', 'Lahaul & Spiti', 'Mandi', 'Shimla', 'Sirmaur', 'Solan', 'Una']
 
 const BRAND = 'HimBhumi'
 const LOGO = 'https://customer-assets-m6fa6gv7.emergentagent.net/job_himalayan-estates-1/artifacts/eidamywr_HImmm.jpeg'
-const HERO_IMAGE = 'https://images.unsplash.com/photo-1531932594968-e5e5e9dee95a?auto=format&fit=crop&w=2200&q=90'
-const locations = ['Nalagarh', 'Baddi', 'Solan', 'Shimla', 'Kasauli', 'Parwanoo', 'Dharamshala', 'Kangra', 'Palampur', 'Manali', 'Kullu', 'Mandi', 'Hamirpur', 'Bilaspur', 'Una', 'Chamba', 'Nahan', 'Narkanda']
+const HERO_SLIDES = [
+  {
+    region: 'Mountain retreats · North India',
+    image: 'https://images.unsplash.com/photo-1531932594968-e5e5e9dee95a?auto=format&fit=crop&w=2200&q=85',
+    imageAlt: 'Forest-covered Himalayan mountains surrounding a quiet valley',
+    tag: 'NORTH INDIA • CURATED LIVING',
+    description: 'Thoughtful spaces, verified properties, and personal guidance to find your sanctuary in the hills.',
+  },
+  {
+    region: 'Coastal villas · South India',
+    image: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=2200&q=85',
+    imageAlt: 'Tropical coastal villa overlooking calm blue water',
+    tag: 'SOUTH INDIA • SERENE LIVING',
+    description: 'Discover verified backwater villas, coffee estates, and modern coastal architecture across the southern belt.',
+  },
+  {
+    region: 'Metropolitan homes · Urban India',
+    image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=2200&q=85',
+    imageAlt: 'Contemporary high-rise architecture in a major city',
+    tag: 'PAN-INDIA • URBAN EXCELLENCE',
+    description: 'Curated luxury apartments and prime commercial spaces in thriving hubs across India.',
+  },
+  {
+    region: 'Heritage homes · Scenic India',
+    image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=2200&q=85',
+    imageAlt: 'A serene, architect-designed country estate surrounded by greenery',
+    tag: 'PAN-INDIA • HERITAGE & ESTATES',
+    description: 'Connecting discerning buyers with exclusive land, heritage villas, and tranquil farmhouses nationwide.',
+  },
+]
 
 const api = async (path, options) => {
   const response = await fetch(`/api/${path}`, options)
   const data = await response.json()
   if (!response.ok) throw new Error(data?.error || 'Something went wrong')
+  if (path === 'inquiries' && options?.method === 'POST' && (data.inboxThreadId || data.inboxError)) {
+    const inquiry = JSON.parse(options.body || '{}')
+    window.dispatchEvent(new CustomEvent('himbhumi:inbox-thread', {
+      detail: { threadId: data.inboxThreadId, propertyId: inquiry.propertyId, error: data.inboxError || '' },
+    }))
+  }
   return data
 }
 
@@ -41,13 +86,17 @@ function Header({ dark = false }) {
   return <header className={`absolute inset-x-0 top-0 z-30 ${dark ? 'text-white' : 'text-foreground'}`}>
     <div className="container mx-auto flex h-24 items-center justify-between px-5 lg:px-10">
       <Brand dark={dark} />
-      <nav className="hidden items-center gap-8 text-sm font-medium md:flex"><a href="/properties" className="opacity-80 transition hover:opacity-100">Properties</a><a href="/list-your-property" className="opacity-80 transition hover:opacity-100">List property</a><a href="/#story" className="opacity-80 transition hover:opacity-100">Our story</a><a href="/admin" className="opacity-80 transition hover:opacity-100">Admin</a></nav>
-      <a href="/list-your-property" className="hidden items-center gap-2 rounded-full border border-current/25 px-5 py-2.5 text-sm transition hover:bg-white/10 md:flex">List your property <ArrowRight size={15} /></a>
+      <nav className="hidden items-center gap-6 text-sm font-medium md:flex"><a href="/properties" className="opacity-80 transition hover:opacity-100">Properties</a><a href="/rentals" className="opacity-80 transition hover:opacity-100">Rentals</a><a href="/saved" className="opacity-80 transition hover:opacity-100">Saved</a><a href="/agent" className="opacity-80 transition hover:opacity-100">Agent portal</a><a href="/login" className="opacity-80 transition hover:opacity-100">Sign in</a><a href="/#story" className="opacity-80 transition hover:opacity-100">Our story</a><a href="/admin" className="opacity-80 transition hover:opacity-100">Admin</a></nav>
+      <a href="/list-your-property" className="hidden items-center gap-2 rounded-full bg-[#c9a86a] px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-md shadow-black/15 transition hover:-translate-y-0.5 hover:bg-[#d9bc82] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#e6c887] md:flex">List your property <ArrowRight size={15} /></a>
       <button onClick={() => setMenuOpen((open) => !open)} className="rounded-full border border-current/25 p-2 md:hidden" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen}><Menu size={19} /></button>
     </div>
     {menuOpen && <nav className={`mx-5 rounded-2xl border border-current/20 p-3 shadow-xl backdrop-blur-xl md:hidden ${dark ? 'bg-slate-950/90 text-white' : 'bg-white/95 text-foreground'}`}>
       <a onClick={() => setMenuOpen(false)} href="/properties" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Properties</a>
-      <a onClick={() => setMenuOpen(false)} href="/list-your-property" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">List property</a>
+      <a onClick={() => setMenuOpen(false)} href="/rentals" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Rental properties</a>
+      <a onClick={() => setMenuOpen(false)} href="/list-your-property" className="mt-1 flex items-center justify-between rounded-xl bg-[#c9a86a] px-4 py-3 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-[#d9bc82] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800">List your property <ArrowRight size={15} /></a>
+      <a onClick={() => setMenuOpen(false)} href="/saved" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Saved properties</a>
+      <a onClick={() => setMenuOpen(false)} href="/agent" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Agent portal</a>
+      <a onClick={() => setMenuOpen(false)} href="/login" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Sign in</a>
       <a onClick={() => setMenuOpen(false)} href="/#story" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Our story</a>
       <a onClick={() => setMenuOpen(false)} href="/admin" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Admin login</a>
     </nav>}
@@ -55,32 +104,252 @@ function Header({ dark = false }) {
 }
 
 function Home() {
-  const [location, setLocation] = useState('Nalagarh')
+  const { locations, locationsError } = useLocationCatalog()
+  const [location, setLocation] = useState('')
+  const [activeHeroSlide, setActiveHeroSlide] = useState(0)
+  const [heroHovered, setHeroHovered] = useState(false)
+  const [heroFocused, setHeroFocused] = useState(false)
+  const [heroPaused, setHeroPaused] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
+  const activeSlide = HERO_SLIDES[activeHeroSlide]
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updateMotionPreference = () => setReducedMotion(media.matches)
+    updateMotionPreference()
+    media.addEventListener('change', updateMotionPreference)
+    return () => media.removeEventListener('change', updateMotionPreference)
+  }, [])
+
+  useEffect(() => {
+    if (heroHovered || heroFocused || heroPaused || reducedMotion) return
+    const timer = window.setInterval(() => {
+      setActiveHeroSlide((current) => (current + 1) % HERO_SLIDES.length)
+    }, 10000)
+    return () => window.clearInterval(timer)
+  }, [heroFocused, heroHovered, heroPaused, reducedMotion])
+
+  const selectedLocation = locations.find((item) => item.id === location)
   return <main className="bg-background text-foreground">
-    <section className="relative flex min-h-[760px] items-end overflow-hidden bg-slate-900 pb-20 text-white lg:min-h-screen lg:items-center lg:pb-0">
-      <div className="absolute inset-0"><img src={HERO_IMAGE} alt="Himachal mountain valley" className="h-full w-full object-cover opacity-80" /></div>
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(6,23,29,.82),rgba(6,23,29,.32),rgba(6,23,29,.24))]" />
+    <section
+      aria-label="HimBhumi featured regions"
+      aria-roledescription="carousel"
+      onMouseEnter={() => setHeroHovered(true)}
+      onMouseLeave={() => setHeroHovered(false)}
+      onFocusCapture={() => setHeroFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setHeroFocused(false)
+      }}
+      className="group relative flex min-h-[850px] items-end overflow-hidden bg-slate-900 pb-12 text-white sm:min-h-[900px] lg:min-h-screen lg:items-center lg:pb-0"
+    >
+      {HERO_SLIDES.map((slide, index) => (
+        <img
+          key={slide.region}
+          src={slide.image}
+          alt={index === activeHeroSlide ? slide.imageAlt : ''}
+          aria-hidden={index !== activeHeroSlide}
+          fetchPriority={index === 0 ? 'high' : 'auto'}
+          loading={index === 0 ? 'eager' : 'lazy'}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out motion-reduce:transition-none ${index === activeHeroSlide ? 'opacity-80' : 'opacity-0'}`}
+        />
+      ))}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(6,23,29,.82),rgba(6,23,29,.32),rgba(6,23,29,.24))]" />
       <Header dark />
-      <div className="container relative z-10 mx-auto w-full px-5 lg:px-10"><div className="max-w-3xl"><div className="mb-7 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-teal-200"><span className="h-px w-12 bg-teal-300" /> Himachal Pradesh / curated living</div><h1 className="max-w-3xl font-serif text-5xl leading-[0.98] tracking-[-0.04em] sm:text-7xl lg:text-[7.2rem]">Find your dream property <span className="italic text-teal-200">with {BRAND}.</span></h1><p className="mt-7 max-w-lg text-base leading-7 text-white/75 lg:text-lg">Discover premium properties across Himachal Pradesh.</p></div>
-        <div className="mt-12 flex max-w-2xl flex-col gap-3 rounded-2xl border border-white/20 bg-white/10 p-3 backdrop-blur-xl sm:flex-row sm:items-center"><div className="flex flex-1 items-center gap-3 rounded-xl bg-black/10 px-4 py-3"><MapPin size={18} className="text-teal-200" /><select value={location} onChange={(event) => setLocation(event.target.value)} className="w-full appearance-none bg-transparent text-sm font-medium text-white outline-none"><option className="text-slate-900">Nalagarh</option>{locations.slice(1).map((item) => <option key={item} className="text-slate-900">{item}</option>)}</select><ChevronDown size={17} className="text-white/60" /></div><a href={`/properties?location=${encodeURIComponent(location)}`} className="flex items-center justify-center gap-3 rounded-xl bg-teal-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-teal-200">View properties <ArrowRight size={16} /></a></div>
+      <div className="container relative z-10 mx-auto w-full px-5 lg:px-10">
+        <div key={activeHeroSlide} role="group" aria-roledescription="slide" aria-label={`${activeHeroSlide + 1} of ${HERO_SLIDES.length}: ${activeSlide.region}`} className="hero-copy-enter max-w-5xl" aria-live="off">
+          <div className="mb-6 inline-flex max-w-full items-center gap-3 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-teal-100 shadow-lg shadow-slate-950/10 backdrop-blur-xl sm:mb-7 sm:text-xs sm:tracking-[0.3em]">
+            <span className="h-px w-6 shrink-0 bg-teal-300 sm:w-9" />
+            <span>{activeSlide.tag}</span>
+          </div>
+          <h1 className="max-w-4xl text-left font-serif text-[2.6rem] font-medium leading-[1.05] tracking-[-0.02em] text-white [font-family:var(--font-playfair),Georgia,serif] [text-shadow:0_2px_24px_rgba(0,0,0,.45)] sm:text-6xl lg:text-[5.25rem]">Find your dream properties with <em className="italic">HimBhumi.com</em></h1>
+          <p className="mt-6 max-w-2xl text-base leading-7 text-white/80 sm:mt-7 lg:text-lg">{activeSlide.description}</p>
+        </div>
+        <div className="mt-9 flex max-w-2xl flex-col gap-3 rounded-2xl border border-white/20 bg-white/10 p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,.55)] backdrop-blur-xl sm:mt-10 sm:flex-row sm:items-center">
+          <LocationSearch locations={locations} value={location} onChange={setLocation} label="Search properties by state, district, tehsil, city, or village" className="flex-1 rounded-xl bg-black/10 px-4 py-3 text-white" />
+          <a href={selectedLocation ? `/locations/${selectedLocation.urlPath}` : location && location !== 'All locations' ? `/properties?location=${encodeURIComponent(location)}` : '/properties'} className="flex items-center justify-center gap-3 rounded-xl bg-teal-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-teal-200">View properties <ArrowRight size={16} /></a>
+        </div>
+        <a href="/rentals" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/90 underline decoration-white/40 underline-offset-4 transition hover:text-teal-200">Browse rental properties <ArrowRight size={14} /></a>
+        <div className="mt-6 flex items-center justify-between gap-4" role="group" aria-label="Choose a featured region">
+          <div className="flex items-center gap-2">
+            {HERO_SLIDES.map((slide, index) => (
+              <button
+                key={slide.region}
+                type="button"
+                onClick={() => setActiveHeroSlide(index)}
+                aria-label={`Show slide ${index + 1}: ${slide.region}`}
+                aria-pressed={index === activeHeroSlide}
+                className="group/dot flex h-8 items-center justify-center rounded-full px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200"
+              >
+                <span className={`h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${index === activeHeroSlide ? 'w-9 bg-[#e6c887]' : 'w-2.5 bg-white/55 group-hover/dot:bg-white'}`} />
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setHeroPaused((paused) => !paused)}
+            aria-label={heroPaused ? 'Play featured regions' : 'Pause featured regions'}
+            className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-medium text-white/85 backdrop-blur-lg transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-200"
+          >
+            {heroPaused ? 'Play' : 'Pause'}
+          </button>
+          <span className="sr-only" aria-live="polite">Featured region {activeHeroSlide + 1} of {HERO_SLIDES.length}: {activeSlide.region}</span>
+        </div>
+        {locationsError && <p role="status" aria-live="polite" className="mt-3 max-w-2xl rounded-lg border border-amber-200/40 bg-slate-950/65 px-4 py-3 text-sm text-amber-100">Location search is temporarily unavailable. Please retry shortly.</p>}
       </div>
     </section>
     <section id="story" className="container mx-auto grid gap-12 px-5 py-24 lg:grid-cols-[.9fr_1.1fr] lg:px-10 lg:py-32"><div><p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">A higher standard</p><h2 className="mt-5 max-w-xl font-serif text-4xl leading-tight tracking-tight sm:text-6xl">Rooted in the <span className="italic text-teal-700">extraordinary.</span></h2></div><div className="max-w-xl self-end"><p className="text-lg leading-8 text-muted-foreground">{BRAND} brings a more thoughtful way to find a home in the hills. From first light over the Dhauladhar to the quiet of a cedar forest, we curate spaces that belong here.</p><a href="/properties" className="mt-8 inline-flex items-center gap-3 border-b border-teal-700 pb-2 text-sm font-semibold text-teal-800">Explore the collection <ArrowRight size={16} /></a></div></section>
-    <section className="bg-[#edf2ed] py-20"><div className="container mx-auto grid gap-5 px-5 sm:grid-cols-3 lg:px-10"><div className="rounded-2xl bg-white p-7"><Trees className="text-teal-700" /><p className="mt-12 font-serif text-3xl">The right place</p><p className="mt-3 text-sm leading-6 text-muted-foreground">A location-led collection across Himachal’s most sought-after valleys.</p></div><div className="rounded-2xl bg-teal-900 p-7 text-white"><Sparkles className="text-teal-200" /><p className="mt-12 font-serif text-3xl">The considered choice</p><p className="mt-3 text-sm leading-6 text-white/65">Homes selected for their character, setting, and lasting value.</p></div><div className="rounded-2xl bg-[#d6e3dc] p-7"><Compass className="text-teal-700" /><p className="mt-12 font-serif text-3xl">The {BRAND} way</p><p className="mt-3 text-sm leading-6 text-muted-foreground">Personal guidance from first viewing to the moment you arrive.</p></div></div></section>
-    <section className="container mx-auto px-5 py-20 lg:px-10"><div className="relative overflow-hidden rounded-3xl bg-teal-950 px-7 py-14 text-white sm:px-14"><div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-teal-800/40 blur-3xl" /><div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between"><div className="max-w-xl"><p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#e6c887]">Have a property to sell or rent?</p><h2 className="mt-4 font-serif text-4xl leading-tight tracking-tight sm:text-5xl">List your property <span className="italic text-teal-200">with {BRAND}.</span></h2><p className="mt-4 text-base leading-7 text-white/70">Owners, agents and builders — reach thousands of buyers and tenants across Himachal. Free to list, reviewed by our team, live in no time.</p></div><a href="/list-your-property" className="flex shrink-0 items-center gap-3 rounded-full bg-[#c9a86a] px-7 py-4 text-sm font-semibold text-slate-950 transition hover:bg-[#d9bc82]">List your property <ArrowRight size={16} /></a></div></div></section>
+    <section className="bg-[#edf2ed] py-20"><div className="container mx-auto grid gap-5 px-5 sm:grid-cols-3 lg:px-10"><div className="rounded-2xl bg-white p-7"><Trees className="text-teal-700" /><p className="mt-12 font-serif text-3xl">The right place</p><p className="mt-3 text-sm leading-6 text-muted-foreground">A location-led collection across India’s most sought-after regions.</p></div><div className="rounded-2xl bg-teal-900 p-7 text-white"><Sparkles className="text-teal-200" /><p className="mt-12 font-serif text-3xl">The considered choice</p><p className="mt-3 text-sm leading-6 text-white/65">Homes selected for their character, setting, and lasting value.</p></div><div className="rounded-2xl bg-[#d6e3dc] p-7"><Compass className="text-teal-700" /><p className="mt-12 font-serif text-3xl">The {BRAND} way</p><p className="mt-3 text-sm leading-6 text-muted-foreground">Personal guidance from first viewing to the moment you arrive.</p></div></div></section>
+    <section className="container mx-auto px-5 py-20 lg:px-10"><div className="relative overflow-hidden rounded-3xl bg-teal-950 px-7 py-14 text-white sm:px-14"><div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-teal-800/40 blur-3xl" /><div className="relative flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between"><div className="max-w-xl"><p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#e6c887]">Have a property to sell or rent?</p><h2 className="mt-4 font-serif text-4xl leading-tight tracking-tight sm:text-5xl">List your property <span className="italic text-teal-200">with {BRAND}.</span></h2><p className="mt-4 text-base leading-7 text-white/70">Owners, agents and builders — reach buyers and tenants across India. Free to list, reviewed by our team, live in no time.</p></div><a href="/list-your-property" className="flex shrink-0 items-center gap-3 rounded-full bg-[#c9a86a] px-7 py-4 text-sm font-semibold text-slate-950 transition hover:bg-[#d9bc82]">List your property <ArrowRight size={16} /></a></div></div></section>
     <Footer />
   </main>
 }
 
-function Footer() { return <footer className="bg-slate-950 px-5 py-12 text-white lg:px-10"><div className="container mx-auto flex flex-col justify-between gap-8 md:flex-row md:items-end"><div><Brand dark /><p className="mt-4 max-w-xs text-sm leading-6 text-white/50">Premium property, thoughtfully found in Himachal Pradesh.</p></div><div className="flex items-center gap-5 text-white/50"><a href="/list-your-property" className="text-xs transition hover:text-white">List property</a><a href="/track" className="text-xs transition hover:text-white">Track listing</a><Instagram size={18} /><Mail size={18} /><span className="text-xs">© 2026 {BRAND}</span></div></div></footer> }
+function Footer() { return <footer className="bg-slate-950 px-5 py-12 text-white lg:px-10"><div className="container mx-auto flex flex-col justify-between gap-8 md:flex-row md:items-end"><div><Brand dark /><p className="mt-4 max-w-xs text-sm leading-6 text-white/50">Premium property, thoughtfully found across India.</p></div><div className="flex items-center gap-5 text-white/50"><a href="/rentals" className="text-xs transition hover:text-white">Rentals</a><a href="/list-your-property" className="text-xs transition hover:text-white">List property</a><a href="/track" className="text-xs transition hover:text-white">Track listing</a><Instagram size={18} /><Mail size={18} /><span className="text-xs">© 2026 {BRAND}</span></div></div></footer> }
 
-function PropertyCard({ property }) { return <a href={`/properties/${property.id}`} className="group block"><div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted"><img src={property.image} alt={property.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-transparent" /><span className="absolute left-4 top-4 rounded-full border border-white/30 bg-black/15 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md">{property.type}</span>{property.featured && <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-[#c9a86a] px-2.5 py-1 text-[10px] font-semibold text-slate-900"><Star size={11} /> Featured</span>}<span className="absolute bottom-4 left-4 flex items-center gap-1.5 text-xs text-white/85"><MapPin size={12} /> {property.location}</span></div><div className="flex items-start justify-between gap-4 pt-4"><div><h3 className="flex items-center gap-1.5 font-serif text-2xl tracking-tight">{property.title}{property.verified && <BadgeCheck size={16} className="text-teal-700" />}</h3><p className="mt-1 text-sm text-muted-foreground">{property.area} · {property.address?.split(',')[0]}</p></div><p className="whitespace-nowrap text-sm font-semibold text-teal-800">{property.price}</p></div></a> }
+function PropertyCard({ property }) {
+  return (
+    <article className="group">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted">
+        <a href={`/properties/${property.id}`} aria-label={`View ${property.title}`}>
+          <img src={property.image} alt={property.title} loading="lazy" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+        </a>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-slate-950/55 via-transparent to-transparent" />
+        <span className="absolute left-4 top-4 rounded-full border border-white/30 bg-black/15 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md">{property.type}</span>
+        {property.listingType && <span className="absolute bottom-4 right-4 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold text-teal-900 shadow-sm">{property.listingType}</span>}
+        <div className="absolute right-3 top-3 flex flex-col items-end gap-2">
+          <FavoriteButton propertyId={property.id} />
+          {property.featured && <span className="flex items-center gap-1 rounded-full bg-[#c9a86a] px-2.5 py-1 text-[10px] font-semibold text-slate-900"><Star size={11} /> Featured</span>}
+          {property.virtualTourUrl && <span className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-bold text-teal-900">360° Tour</span>}
+        </div>
+        <span className="absolute bottom-4 left-4 flex items-center gap-1.5 text-xs text-white/85"><MapPin size={12} /> {property.location}</span>
+      </div>
+      <a href={`/properties/${property.id}`} className="block">
+        <div className="flex items-start justify-between gap-4 pt-4">
+          <div><h3 className="flex items-center gap-1.5 font-serif text-2xl tracking-tight">{property.title}{property.verified && <BadgeCheck size={16} className="text-teal-700" />}</h3><p className="mt-1 text-sm text-muted-foreground">{property.area} · {property.address?.split(',')[0]}</p><p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><Eye size={13} /> {property.views || 0} views</p></div>
+          <p className="whitespace-nowrap text-sm font-semibold text-teal-800">{property.price}</p>
+        </div>
+      </a>
+    </article>
+  )
+}
 
-function Properties() {
-  const [properties, setProperties] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [location, setLocation] = useState('All locations')
-  useEffect(() => { const selected = new URLSearchParams(window.location.search).get('location'); if (selected) setLocation(selected) }, [])
-  useEffect(() => { setLoading(true); api(`properties${location !== 'All locations' ? `?location=${encodeURIComponent(location)}` : ''}`).then((data) => setProperties(data.properties || [])).catch((reason) => setError(reason.message)).finally(() => setLoading(false)) }, [location])
-  return <main className="min-h-screen bg-background text-foreground"><div className="border-b border-border bg-[#edf2ed]"><div className="container mx-auto px-5 lg:px-10"><Header /><div className="relative flex min-h-[380px] items-end pb-12 pt-28"><div><p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">The collection</p><h1 className="mt-4 font-serif text-5xl tracking-tight sm:text-7xl">Properties <span className="italic text-teal-700">available in</span></h1><div className="relative mt-7 inline-flex items-center gap-3 rounded-full border border-border bg-white px-4 py-2.5"><MapPin size={16} className="text-teal-700" /><select value={location} onChange={(event) => setLocation(event.target.value)} className="appearance-none bg-transparent pr-8 text-sm font-medium outline-none"><option>All locations</option>{locations.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} className="pointer-events-none absolute right-4 text-muted-foreground" /></div></div></div></div></div><div className="container mx-auto px-5 py-14 lg:px-10"><div className="mb-8 flex items-center justify-between"><p className="text-sm text-muted-foreground">{loading ? 'Finding your next address...' : `${properties.length} curated ${properties.length === 1 ? 'property' : 'properties'}`}</p><a href="/" className="text-sm font-medium text-teal-800">Back home</a></div>{error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">{error}</div> : loading ? <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3"><div className="aspect-[4/3] animate-pulse rounded-2xl bg-muted" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-muted" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-muted" /></div> : properties.length ? <div className="grid gap-x-6 gap-y-12 md:grid-cols-2 lg:grid-cols-3">{properties.map((property) => <PropertyCard key={property.id} property={property} />)}</div> : <div className="rounded-2xl border border-dashed border-border py-24 text-center"><p className="font-serif text-3xl">A quieter corner awaits.</p><p className="mt-2 text-sm text-muted-foreground">We are curating new properties in this location.</p></div>}</div></main>
+const emptyPropertyFilters = { minPrice: '', maxPrice: '', bhk: [], types: [] }
+
+function filtersFromSearch(search) {
+  const params = new URLSearchParams(search)
+  return {
+    minPrice: params.get('minPrice') || '',
+    maxPrice: params.get('maxPrice') || '',
+    bhk: params.getAll('bhk'),
+    types: params.getAll('type'),
+  }
+}
+
+function Properties({ initialLocation = '', initialListingType = '' }) {
+  const { locations } = useLocationCatalog()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const searchString = searchParams.toString()
+  const listingType = initialListingType || searchParams.get('listingType') || ''
+  const [properties, setProperties] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [location, setLocation] = useState(initialLocation || searchParams.get('location') || 'All locations')
+  const [filters, setFilters] = useState(() => filtersFromSearch(searchString))
+  const [appliedFilters, setAppliedFilters] = useState(() => filtersFromSearch(searchString))
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString)
+    const requested = params.get('location') || initialLocation
+    if (requested) {
+      const selected = locations.find((item) => item.id === requested || item.urlPath === requested || item.slug === requested || item.name.toLocaleLowerCase() === requested.toLocaleLowerCase())
+      setLocation(selected?.id || requested)
+    } else {
+      setLocation('All locations')
+    }
+    const fromUrl = filtersFromSearch(searchString)
+    setFilters(fromUrl)
+    setAppliedFilters(fromUrl)
+  }, [searchString, initialLocation, locations])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchString)
+      if (location === 'All locations') params.delete('location')
+      else params.set('location', location)
+      if (listingType) params.set('listingType', listingType)
+      else params.delete('listingType')
+      params.delete('minPrice')
+      params.delete('maxPrice')
+      params.delete('bhk')
+      params.delete('type')
+      if (appliedFilters.minPrice) params.set('minPrice', appliedFilters.minPrice)
+      if (appliedFilters.maxPrice) params.set('maxPrice', appliedFilters.maxPrice)
+      appliedFilters.bhk.forEach((value) => params.append('bhk', value))
+      appliedFilters.types.forEach((value) => params.append('type', value))
+      const next = params.toString()
+      if (next !== searchString) router.replace(`${pathname}${next ? `?${next}` : ''}`, { scroll: false })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [location, appliedFilters, listingType, pathname, router, searchString])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (location !== 'All locations') params.set('location', location)
+    if (listingType) params.set('listingType', listingType)
+    if (appliedFilters.minPrice) params.set('minPrice', appliedFilters.minPrice)
+    if (appliedFilters.maxPrice) params.set('maxPrice', appliedFilters.maxPrice)
+    appliedFilters.bhk.forEach((value) => params.append('bhk', value))
+    appliedFilters.types.forEach((value) => params.append('type', value))
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      setLoading(true)
+      setError('')
+      api(`properties${params.size ? `?${params}` : ''}`, { signal: controller.signal })
+        .then((data) => setProperties(data.properties || []))
+        .catch((reason) => { if (reason.name !== 'AbortError') setError(reason.message) })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    }, 300)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [location, appliedFilters, listingType])
+
+  const selectedLocation = locations.find((item) => item.id === location || item.urlPath === location || item.name.toLocaleLowerCase() === String(location).toLocaleLowerCase())
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="border-b border-border bg-[#edf2ed]">
+        <div className="container mx-auto px-5 lg:px-10">
+          <Header />
+          <div className="relative flex min-h-[380px] items-end pb-12 pt-28">
+            <div className="w-full">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">{listingType === 'For rent' ? 'The rental collection' : 'The collection'}</p>
+              <h1 className="mt-4 font-serif text-5xl tracking-tight sm:text-7xl">{listingType === 'For rent' ? 'Rental properties' : 'Properties'} <span className="italic text-teal-700">{selectedLocation ? `in ${selectedLocation.name}` : location !== 'All locations' ? `in ${location}` : 'across India'}</span></h1>
+              {listingType === 'For rent' && <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">Explore homes, flats, apartments, villas, studios, and commercial spaces available to rent across India.</p>}
+              <div className="mt-7 flex max-w-2xl flex-col gap-3 sm:flex-row">
+                <div className="inline-flex min-w-0 flex-1 items-center rounded-full border border-border bg-white px-4 py-2.5">
+                  <LocationSearch locations={locations} value={location === 'All locations' ? '' : location} onChange={(value) => setLocation(value || 'All locations')} label="Search properties by state, district, tehsil, city, or village" className="w-full text-foreground" />
+                </div>
+                <PropertyFilters value={filters} onChange={setFilters} onApply={() => setAppliedFilters(filters)} onReset={() => { setFilters(emptyPropertyFilters); setAppliedFilters(emptyPropertyFilters) }} listingType={listingType} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="container mx-auto px-5 py-14 lg:px-10">
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">{loading ? 'Finding your next address...' : `${properties.length} ${properties.length === 1 ? 'property' : 'properties'}`}</p>
+          <div className="flex items-center gap-4"><a href="/saved" className="text-sm font-semibold text-rose-700">Saved properties</a><a href="/" className="text-sm font-medium text-teal-800">Back home</a></div>
+        </div>
+        {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">{error}</div>
+          : loading ? <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3"><div className="aspect-[4/3] animate-pulse rounded-2xl bg-muted" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-muted" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-muted" /></div>
+            : properties.length ? <div className="grid gap-x-6 gap-y-12 md:grid-cols-2 lg:grid-cols-3">{properties.map((property) => <PropertyCard key={property.id} property={property} />)}</div>
+              : <div className="rounded-2xl border border-dashed border-border py-24 text-center"><p className="font-serif text-3xl">{listingType === 'For rent' ? 'No rental properties are available yet.' : 'No properties match these filters.'}</p><p className="mt-2 text-sm text-muted-foreground">{listingType === 'For rent' ? 'Check back soon, or share a rental listing with HimBhumi.' : 'Try broadening your budget or property type.'}</p>{listingType === 'For rent' && <a href="/list-your-property" className="mt-5 inline-flex rounded-full bg-teal-900 px-5 py-2.5 text-sm font-semibold text-white">List a rental property</a>}<button type="button" onClick={() => { setFilters(emptyPropertyFilters); setAppliedFilters(emptyPropertyFilters); setLocation('All locations') }} className="mt-5 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-teal-900">Reset filters</button></div>}
+      </div>
+    </main>
+  )
 }
 
 function Detail({ id }) {
@@ -111,33 +380,132 @@ function AdminWorkspace() {
   const [properties, setProperties] = useState([])
   const [inquiries, setInquiries] = useState([])
   const [messages, setMessages] = useState([])
+  const [agents, setAgents] = useState([])
+  const [agentsError, setAgentsError] = useState('')
+  const [loadingAgents, setLoadingAgents] = useState(true)
   const [notice, setNotice] = useState('')
   const [compose, setCompose] = useState({ to: '', subject: '', message: '', enquiryId: '' })
   const [filter, setFilter] = useState('all')
+
   const load = async () => {
+    setLoadingAgents(true)
+    const results = await Promise.allSettled([
+      api('properties'),
+      api('inquiries'),
+      api('messages'),
+      api('agents'),
+    ])
+    const failures = []
+    const [propertyResult, enquiryResult, messageResult, agentResult] = results
+    if (propertyResult.status === 'fulfilled') setProperties(propertyResult.value.properties || [])
+    else failures.push(`Properties: ${propertyResult.reason.message}`)
+    if (enquiryResult.status === 'fulfilled') setInquiries(enquiryResult.value.inquiries || [])
+    else failures.push(`Enquiries: ${enquiryResult.reason.message}`)
+    if (messageResult.status === 'fulfilled') setMessages(messageResult.value.messages || [])
+    else failures.push(`Messages: ${messageResult.reason.message}`)
+    if (agentResult.status === 'fulfilled') {
+      setAgents(agentResult.value.agents || [])
+      setAgentsError('')
+    } else {
+      setAgentsError(agentResult.reason.message || 'Could not load agent applications.')
+      failures.push(`Agent applications: ${agentResult.reason.message || 'Request failed.'}`)
+    }
+    setNotice(failures.join(' · '))
+    setLoadingAgents(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const updateProperty = async (id, status) => {
     try {
-      const [propertyData, enquiryData, messageData] = await Promise.all([api('properties'), api('inquiries'), api('messages')])
-      setProperties(propertyData.properties || [])
-      setInquiries(enquiryData.inquiries || [])
-      setMessages(messageData.messages || [])
+      await api(`properties/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      await load()
     } catch (error) { setNotice(error.message) }
   }
-  useEffect(() => { load() }, [])
-  const updateProperty = async (id, status) => {
-    try { await api(`properties/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); setNotice(`Property marked ${status}`); load() } catch (error) { setNotice(error.message) }
-  }
+
   const updateInquiry = async (id, status) => {
-    try { await api(`inquiries/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); load() } catch (error) { setNotice(error.message) }
+    try {
+      await api(`inquiries/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      await load()
+    } catch (error) { setNotice(error.message) }
   }
+
+  const reviewAgent = async (id, status) => {
+    try {
+      await api(`agents/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      await load()
+    } catch (error) { setNotice(error.message) }
+  }
+
   const sendMessage = async (event) => {
     event.preventDefault()
-    try { await api('messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(compose) }); setCompose({ to: '', subject: '', message: '', enquiryId: '' }); setNotice('Message stored and sent when SMTP is configured'); load() } catch (error) { setNotice(error.message) }
+    try {
+      await api('messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(compose) })
+      setCompose({ to: '', subject: '', message: '', enquiryId: '' })
+      await load()
+    } catch (error) { setNotice(error.message) }
   }
-  const messageEnquiry = (item) => setCompose({ to: item.email || '', subject: `Re: ${item.propertyTitle || 'Your HimBhumi enquiry'}`, message: `Hello ${item.fullName},\n\nThank you for your enquiry.`, enquiryId: item.id })
-  const visibleInquiries = inquiries.filter((item) => filter === 'all' || item.status === filter)
-  return <main className="min-h-screen bg-[#f5f7f4] text-foreground"><div className="border-b border-border bg-white"><div className="container mx-auto flex items-center justify-between px-5 py-5 lg:px-10"><Brand /><div className="flex items-center gap-4"><a href="/" className="text-sm text-muted-foreground">View site</a><button onClick={async () => { await api('admin/logout', { method: 'POST' }); window.location.href = '/admin' }} className="text-sm font-semibold text-red-700">Log out</button></div></div></div><div className="container mx-auto space-y-8 px-5 py-12 lg:px-10"><div><p className="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">Workspace</p><h1 className="mt-3 font-serif text-5xl">Admin dashboard</h1><p className="mt-3 text-muted-foreground">Publish, sell, and follow up every HimBhumi property enquiry.</p></div>{notice && <p className="rounded-lg bg-teal-50 px-4 py-3 text-sm text-teal-900">{notice}</p>}<section className="rounded-2xl bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">Properties</h2><span className="text-sm text-muted-foreground">{properties.length} total</span></div><div className="mt-5 space-y-3">{properties.length ? properties.map((property) => <div key={property.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-border p-4"><img src={property.image || LOGO} alt="" className="h-16 w-24 rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-serif text-xl">{property.title}</p><p className="text-sm text-muted-foreground">{property.location} · {property.price}</p><span className="text-xs font-semibold uppercase text-teal-700">{property.status || 'published'}</span></div><div className="flex flex-wrap gap-2"><button onClick={() => updateProperty(property.id, property.status === 'sold' ? 'published' : 'sold')} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">{property.status === 'sold' ? 'Restore' : 'Mark sold'}</button><button onClick={() => updateProperty(property.id, property.status === 'published' ? 'draft' : 'published')} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">{property.status === 'published' ? 'Unpublish' : 'Publish'}</button></div></div>) : <p className="text-sm text-muted-foreground">No properties found.</p>}</div></section><section className="rounded-2xl bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">Enquiries</h2><select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded-lg border border-border px-3 py-2 text-sm"><option value="all">All statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></div><div className="mt-5 space-y-3">{visibleInquiries.length ? visibleInquiries.map((item) => <div key={item.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{item.fullName} · {item.mobile}</p><p className="text-sm text-teal-800">{item.propertyTitle || item.propertyId}</p><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.message || 'No message provided.'}</p>{item.email && <p className="mt-2 text-xs text-muted-foreground">{item.email}</p>}</div><div className="flex flex-wrap gap-2"><select value={item.status || 'new'} onChange={(event) => updateInquiry(item.id, event.target.value)} className="rounded-lg border border-border px-2 py-2 text-xs"><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select>{item.email && <button onClick={() => messageEnquiry(item)} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">Message</button>}</div></div></div>) : <p className="text-sm text-muted-foreground">No enquiries yet.</p>}</div></section><section className="grid gap-8 lg:grid-cols-[1fr_1fr]"><form onSubmit={sendMessage} className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Inbox · compose</h2><div className="mt-5 space-y-3"><input required type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} placeholder="Recipient email" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><input required value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} placeholder="Subject" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><textarea required rows="7" value={compose.message} onChange={(event) => setCompose({ ...compose, message: event.target.value })} placeholder="Message" className="w-full resize-none rounded-lg border border-border px-3 py-2.5 text-sm" /><button className="rounded-lg bg-teal-900 px-5 py-3 text-sm font-semibold text-white">Send and store message</button></div></form><div className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Sent messages</h2><div className="mt-5 space-y-3">{messages.length ? messages.map((item) => <div key={item.id} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-3"><p className="font-semibold">{item.subject}</p><span className="text-xs uppercase text-teal-700">{item.status}</span></div><p className="mt-1 text-xs text-muted-foreground">To: {item.to} · {new Date(item.createdAt).toLocaleString()}</p><p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">{item.message}</p></div>) : <p className="text-sm text-muted-foreground">No messages stored yet.</p>}</div></div></section></div></main>
-}
 
+  const messageEnquiry = (item) => setCompose({ to: item.email || '', subject: `Re: ${item.propertyTitle || 'Your HimBhumi enquiry'}`, message: `Hello ${item.fullName},
+
+Thank you for your enquiry.`, enquiryId: item.id })
+  const visibleInquiries = inquiries.filter((item) => filter === 'all' || item.status === filter)
+
+  return (
+    <main className="min-h-screen bg-[#f5f7f4] text-foreground">
+      <div className="border-b border-border bg-white">
+        <div className="container mx-auto flex items-center justify-between px-5 py-5 lg:px-10">
+          <Brand />
+          <div className="flex items-center gap-4">
+            <a href="/inbox" className="text-sm font-semibold text-teal-800">Inbox</a>
+            <a href="/" className="text-sm text-muted-foreground">View site</a>
+            <button onClick={async () => { await api('admin/logout', { method: 'POST' }); window.location.href = '/admin' }} className="text-sm font-semibold text-red-700">Log out</button>
+          </div>
+        </div>
+      </div>
+      <div className="container mx-auto space-y-8 px-5 py-12 lg:px-10">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">Workspace</p>
+          <h1 className="mt-3 font-serif text-5xl">Admin dashboard</h1>
+          <p className="mt-3 text-muted-foreground">Publish, sell, and follow up every HimBhumi property enquiry.</p>
+        </div>
+        {notice && <p role="status" className="rounded-lg bg-teal-50 px-4 py-3 text-sm text-teal-900">{notice}</p>}
+        <LocationManager />
+        <InboxWorkspace compact />
+        <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="font-serif text-2xl">Agent applications</h2>
+              {agents.filter((agent) => agent.status === 'pending').length > 0 && <span className="rounded-full bg-[#c9a86a]/20 px-3 py-1 text-xs font-semibold text-[#8a6d33]">{agents.filter((agent) => agent.status === 'pending').length} pending approval</span>}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">{agents.length} total</span>
+              <button type="button" onClick={load} disabled={loadingAgents} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold disabled:opacity-50">{loadingAgents ? 'Refreshing…' : 'Refresh'}</button>
+            </div>
+          </div>
+          {agentsError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">Could not load agent applications: {agentsError}. Retry using Refresh.</p>}
+          <div className="mt-5 space-y-3">
+            {loadingAgents && agents.length === 0 ? <p role="status" className="text-sm text-muted-foreground">Loading agent applications…</p>
+              : agents.length ? agents.map((agent) => <article key={agent.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4"><div className="min-w-0"><p className="font-semibold">{agent.name}</p><p className="text-sm text-muted-foreground">{agent.email}{agent.phone ? ` · ${agent.phone}` : ''}</p><p className="mt-1 text-xs text-muted-foreground">Applied {new Date(agent.createdAt).toLocaleString()}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${agent.status === 'pending' ? 'bg-amber-100 text-amber-900' : agent.status === 'approved' ? 'bg-teal-100 text-teal-900' : 'bg-slate-100 text-slate-700'}`}>{agent.status}</span>{agent.status === 'pending' && <><button type="button" onClick={() => reviewAgent(agent.id, 'approved')} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">Approve</button><button type="button" onClick={() => reviewAgent(agent.id, 'rejected')} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-red-700">Reject</button></>}</div></article>)
+                : !agentsError && <p className="text-sm text-muted-foreground">No agent applications yet.</p>}
+          </div>
+        </section>
+        <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">Properties</h2><span className="text-sm text-muted-foreground">{properties.length} total</span></div>
+          <div className="mt-5 space-y-3">{properties.length ? properties.map((property) => <div key={property.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-border p-4"><img src={property.image || LOGO} alt="" className="h-16 w-24 rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-serif text-xl">{property.title}</p><p className="text-sm text-muted-foreground">{property.location} · {property.price}</p><span className="text-xs font-semibold uppercase text-teal-700">{property.status || 'published'}</span></div><div className="flex flex-wrap gap-2"><button onClick={() => updateProperty(property.id, property.status === 'sold' ? 'published' : 'sold')} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">{property.status === 'sold' ? 'Restore' : 'Mark sold'}</button><button onClick={() => updateProperty(property.id, property.status === 'published' ? 'draft' : 'published')} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">{property.status === 'published' ? 'Unpublish' : 'Publish'}</button></div></div>) : <p className="text-sm text-muted-foreground">No properties found.</p>}</div>
+        </section>
+        <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">Enquiries</h2><select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded-lg border border-border px-3 py-2 text-sm"><option value="all">All statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></div>
+          <div className="mt-5 space-y-3">{visibleInquiries.length ? visibleInquiries.map((item) => <div key={item.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{item.fullName} · {item.mobile}</p><p className="text-sm text-teal-800">{item.propertyTitle || item.propertyId}</p><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.message || 'No message provided.'}</p>{item.email && <p className="mt-2 text-xs text-muted-foreground">{item.email}</p>}</div><div className="flex flex-wrap gap-2"><select value={item.status || 'new'} onChange={(event) => updateInquiry(item.id, event.target.value)} className="rounded-lg border border-border px-2 py-2 text-xs"><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select>{item.email && <button onClick={() => messageEnquiry(item)} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">Message</button>}</div></div></div>) : <p className="text-sm text-muted-foreground">No enquiries yet.</p>}</div>
+        </section>
+        <section className="grid gap-8 lg:grid-cols-[1fr_1fr]">
+          <form onSubmit={sendMessage} className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Inbox · compose</h2><div className="mt-5 space-y-3"><input required type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} placeholder="Recipient email" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><input required value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} placeholder="Subject" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><textarea required rows="7" value={compose.message} onChange={(event) => setCompose({ ...compose, message: event.target.value })} placeholder="Message" className="w-full resize-none rounded-lg border border-border px-3 py-2.5 text-sm" /><button className="rounded-lg bg-teal-900 px-5 py-3 text-sm font-semibold text-white">Send and store message</button></div></form>
+          <div className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Sent messages</h2><div className="mt-5 space-y-3">{messages.length ? messages.map((item) => <div key={item.id} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-3"><p className="font-semibold">{item.subject}</p><span className="text-xs uppercase text-teal-700">{item.status}</span></div><p className="mt-1 text-xs text-muted-foreground">To: {item.to} · {new Date(item.createdAt).toLocaleString()}</p><p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">{item.message}</p></div>) : <p className="text-sm text-muted-foreground">No messages stored yet.</p>}</div></div>
+        </section>
+      </div>
+    </main>
+  )
+}
 function Admin() {
   const [authenticated, setAuthenticated] = useState(false)
   const [email, setEmail] = useState('')
@@ -162,9 +530,39 @@ function Admin() {
     }
   }
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#f5f7f4]"><Loader2 className="animate-spin text-teal-800" /></div>
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#edf2ed]"><Loader2 className="animate-spin text-teal-800" /></div>
   if (authenticated) return <AdminWorkspace />
-  return <main className="flex min-h-screen items-center justify-center bg-[#edf2ed] px-5"><form onSubmit={login} className="w-full max-w-md rounded-3xl border border-border bg-white p-8 shadow-xl"><p className="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">Restricted workspace</p><h1 className="mt-3 font-serif text-4xl">Admin login</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">Only the HimBhumi administrator can access listings, enquiries, and property management.</p><div className="mt-7 space-y-4"><label className="block"><span className="mb-1.5 block text-sm font-medium text-foreground">Admin email</span><input required autoComplete="username" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Admin email" className="w-full rounded-lg border border-border px-4 py-3 text-sm outline-none focus:border-teal-700" /></label><label className="block"><span className="mb-1.5 block text-sm font-medium text-foreground">Password</span><span className="relative block"><input required autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" className="w-full rounded-lg border border-border px-4 py-3 pr-12 text-sm outline-none focus:border-teal-700" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-lg text-muted-foreground transition hover:text-teal-800">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>{error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}<button className="w-full rounded-lg bg-teal-900 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-800">Sign in</button></div><a href="/" className="mt-6 block text-center text-sm text-muted-foreground hover:text-teal-800">Return to website</a></form></main>
+  return (
+    <AuthPageShell
+      eyebrow="Administrator access"
+      title="Admin sign in"
+      description="Manage property listings, review enquiries, and keep the HimBhumi collection up to date."
+      Icon={ShieldCheck}
+    >
+      <form onSubmit={login}>
+        <GoogleSignInButton role="admin" label="Sign in as an administrator with Google" />
+        {error && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+        <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">Access is limited to Google accounts authorized by the site administrator.</p>
+        <details className="mt-6 border-t border-border pt-4">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 transition hover:text-teal-900">Use legacy administrator sign in</summary>
+          <div className="mt-5 space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-800">Admin email</span>
+              <input required autoComplete="username" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Admin email" className="w-full rounded-xl border border-border bg-[#f7f8f5] px-4 py-3 text-sm outline-none transition focus:border-teal-700 focus:bg-white focus:ring-2 focus:ring-teal-800/10" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-800">Password</span>
+              <span className="relative block">
+                <input required autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" className="w-full rounded-xl border border-border bg-[#f7f8f5] px-4 py-3 pr-12 text-sm outline-none transition focus:border-teal-700 focus:bg-white focus:ring-2 focus:ring-teal-800/10" />
+                <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-muted-foreground transition hover:text-teal-800">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+              </span>
+            </label>
+            <button className="w-full rounded-full bg-teal-900 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800">Sign in with password</button>
+          </div>
+        </details>
+      </form>
+    </AuthPageShell>
+  )
 }
 
 function WebsiteChatbot() {
@@ -176,31 +574,36 @@ function WebsiteChatbot() {
 
   const loadProperties = async () => {
     if (properties) return properties
-    let available = []
-    try {
-      const data = await api('properties')
-      available = data.properties || []
-    } catch {
-      // General site guidance remains available if the property database is temporarily offline.
-    }
+    const data = await api('properties')
+    const available = data.properties || []
     setProperties(available)
     return available
   }
 
   const answer = async (question) => {
     const text = question.toLowerCase()
-    const catalog = await loadProperties()
-    const location = locations.find((item) => text.includes(item.toLowerCase()))
-    const matches = catalog.filter((property) => {
-      const haystack = [property.title, property.location, property.type, property.price, property.area, property.address, property.description, ...(property.amenities || [])].join(' ').toLowerCase()
-      return (!location || property.location.toLowerCase() === location.toLowerCase()) && text.split(/\s+/).some((word) => word.length > 2 && haystack.includes(word))
-    }).slice(0, 3)
-    if (/list|sell|rent out|advertis|owner|builder/.test(text)) return { text: 'Owners, agents, and builders can submit a property for free. Our team reviews every submission before it goes live. Start here: /list-your-property' }
+    const location = LEGACY_LOCATION_NAMES.find((item) => text.includes(item.toLowerCase()))
     if (/track|status|listing id|submission/.test(text)) return { text: 'You can check a submitted property using its Listing ID here: /track. Approved listings are published after our review.' }
+    if (/list|sell|rent out|advertis|owner|builder/.test(text)) return { text: 'Owners, agents, and builders can submit a property for free. Our team reviews every submission before it goes live. Start here: /list-your-property' }
     if (/contact|call|whatsapp|enquir|visit|viewing/.test(text)) return { text: 'For a viewing or enquiry, open any property and use its enquiry form. Browse the full collection here: /properties.' }
+    if (!location && /where|location|place|district|himachal/.test(text)) return { text: `HimBhumi currently covers ${LEGACY_LOCATION_NAMES.join(', ')}. Tell me a location, property type, or budget and I will narrow the collection for you.` }
+    if (!location && /price|budget|cost|crore|cr|lakh|cheap|expensive/.test(text)) return { text: 'Prices vary by location, land size, property type, and views. Tell me your budget and preferred location, or browse the published collection: /properties.' }
+    if (!location && !/\b(property|properties|villa|house|apartment|flat|plot|land|farmhouse|estate)\b/.test(text)) {
+      return { text: 'I can help with published properties, locations, prices, viewing enquiries, listing a property, and tracking a submission. Try “show villas in Kasauli” or “how do I list my property?”' }
+    }
+
+    const catalog = await loadProperties()
+    const ignoredTerms = new Set(['show', 'find', 'search', 'looking', 'want', 'need', 'property', 'home', 'please', 'with', 'from', 'near', 'around', 'under', 'below', 'price', 'budget', 'cost'])
+    const searchTerms = text.split(/\s+/)
+      .map((word) => word.endsWith('ies') ? `${word.slice(0, -3)}y` : word.endsWith('s') ? word.slice(0, -1) : word)
+      .filter((word) => word.length > 2 && !ignoredTerms.has(word))
+    const matches = catalog.filter((property) => {
+      const propertyLocation = String(property.location || '').toLowerCase()
+      const haystack = [property.title, property.location, property.type, property.price, property.area, property.address, property.description, ...(property.amenities || [])].join(' ').toLowerCase()
+      return (!location || propertyLocation === location.toLowerCase()) && (!searchTerms.length || searchTerms.some((word) => haystack.includes(word)))
+    }).slice(0, 3)
     if (matches.length) return { text: location ? `Here are the best matches I found in ${location}:` : 'Here are a few matches from the HimBhumi collection:', properties: matches }
     if (location) return { text: `I do not see a published property matching that request in ${location} yet. Try another Himachal location or browse all properties: /properties.` }
-    if (/where|location|place|district|himachal/.test(text)) return { text: `HimBhumi currently covers ${locations.join(', ')}. Tell me a location, property type, or budget and I will narrow the collection for you.` }
     if (/price|budget|cost|crore|cr|lakh|cheap|expensive/.test(text)) return { text: 'Prices vary by location, land size, property type, and views. Tell me your budget and preferred location, or browse the published collection: /properties.' }
     return { text: 'I can help with published properties, locations, prices, viewing enquiries, listing a property, and tracking a submission. Try “show villas in Kasauli” or “how do I list my property?”' }
   }
@@ -215,15 +618,16 @@ function WebsiteChatbot() {
     try {
       const result = await answer(question)
       setMessages((current) => [...current, { role: 'assistant', ...result }])
-    } catch {
-      setMessages((current) => [...current, { role: 'assistant', text: 'I could not load the property collection right now. Please try again or browse /properties.' }])
+    } catch (error) {
+      console.error('Property assistant could not search the collection:', error)
+      setMessages((current) => [...current, { role: 'assistant', text: 'I could not search published properties right now. Please try again later or browse /properties.' }])
     } finally { setBusy(false) }
   }
 
   const linkify = (text) => text.split(/(\/(?:properties|list-your-property|track)(?:\/[^ ]*)?)/g).map((part, index) => part.startsWith('/') ? <a key={index} href={part} className="font-semibold text-teal-800 underline">{part}</a> : part)
   return <>
     <button onClick={() => setOpen(true)} aria-label="Open HimBhumi property assistant" className={`fixed bottom-6 right-6 z-40 flex items-center gap-3 rounded-full bg-teal-900 py-3 pl-4 pr-5 text-white shadow-[0_20px_50px_-15px_rgba(10,74,32,.7)] ring-1 ring-[#c9a86a]/60 transition hover:bg-teal-800 ${open ? 'pointer-events-none opacity-0' : 'opacity-100'}`}><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#c9a86a]/20 ring-1 ring-[#c9a86a]"><MessageCircle size={16} className="text-[#e6c887]" /></span><span className="text-left leading-tight"><span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[#e6c887]">Ask HimBhumi</span><span className="block text-sm font-medium">Property assistant</span></span></button>
-    {open && <div className="fixed inset-0 z-50 flex items-end justify-end p-3 sm:p-6" role="dialog" aria-label="HimBhumi property assistant"><button aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" /><div className="relative flex h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-[#c9a86a]/25 bg-white shadow-2xl sm:h-[650px]"><div className="flex items-center gap-3 bg-teal-950 px-5 py-4 text-white"><span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 ring-1 ring-[#c9a86a]/70"><MessageCircle size={18} className="text-[#e6c887]" /></span><div className="flex-1 leading-tight"><p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#e6c887]">HimBhumi</p><p className="font-serif text-xl">Property assistant</p></div><button onClick={() => setOpen(false)} aria-label="Close chat"><X size={18} /></button></div><div className="flex-1 space-y-4 overflow-y-auto bg-[#f7f4ec] px-4 py-5">{messages.map((message, index) => <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${message.role === 'user' ? 'bg-teal-900 text-white' : 'border border-[#c9a86a]/25 bg-white text-slate-800 shadow-sm'}`}><p className="whitespace-pre-wrap">{linkify(message.text)}</p>{message.properties?.map((property) => <a key={property.id} href={`/properties/${property.id}`} className="mt-3 block rounded-xl border border-border bg-[#f7f4ec] p-3 transition hover:border-teal-700"><p className="font-serif text-lg text-slate-900">{property.title}</p><p className="text-xs text-muted-foreground">{property.location} · {property.type}</p><p className="mt-1 text-sm font-semibold text-teal-900">{property.price}</p></a>)}</div></div>)}{busy && <div className="flex justify-start"><div className="rounded-2xl border border-border bg-white px-4 py-3 text-sm text-muted-foreground">Searching the HimBhumi collection...</div></div>}</div><form onSubmit={send} className="flex items-center gap-2 border-t border-border bg-white px-3 py-3"><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about a property or location..." className="flex-1 rounded-full border border-border bg-[#f7f4ec] px-4 py-2.5 text-sm outline-none focus:border-teal-700" /><button disabled={busy || !input.trim()} className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-900 text-white disabled:opacity-50" aria-label="Send"><ArrowRight size={16} /></button></form></div></div>}
+    {open && <div className="fixed inset-0 z-50 flex items-end justify-end p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="HimBhumi property assistant"><button aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" /><div className="relative flex h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-[#c9a86a]/25 bg-white shadow-2xl sm:h-[650px]"><div className="flex items-center gap-3 bg-teal-950 px-5 py-4 text-white"><span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 ring-1 ring-[#c9a86a]/70"><MessageCircle size={18} className="text-[#e6c887]" /></span><div className="flex-1 leading-tight"><p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#e6c887]">HimBhumi</p><p className="font-serif text-xl">Property assistant</p></div><button onClick={() => setOpen(false)} aria-label="Close chat"><X size={18} /></button></div><div aria-live="polite" aria-relevant="additions" className="flex-1 space-y-4 overflow-y-auto bg-[#f7f4ec] px-4 py-5">{messages.map((message, index) => <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${message.role === 'user' ? 'bg-teal-900 text-white' : 'border border-[#c9a86a]/25 bg-white text-slate-800 shadow-sm'}`}><p className="whitespace-pre-wrap">{linkify(message.text)}</p>{message.properties?.map((property) => <a key={property.id} href={`/properties/${property.id}`} className="mt-3 block rounded-xl border border-border bg-[#f7f4ec] p-3 transition hover:border-teal-700"><p className="font-serif text-lg text-slate-900">{property.title}</p><p className="text-xs text-muted-foreground">{property.location} · {property.type}</p><p className="mt-1 text-sm font-semibold text-teal-900">{property.price}</p></a>)}</div></div>)}{busy && <div role="status" className="flex justify-start"><div className="rounded-2xl border border-border bg-white px-4 py-3 text-sm text-muted-foreground">Searching the HimBhumi collection...</div></div>}</div><form onSubmit={send} className="flex items-center gap-2 border-t border-border bg-white px-3 py-3"><input aria-label="Ask about a property or location" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about a property or location..." className="flex-1 rounded-full border border-border bg-[#f7f4ec] px-4 py-2.5 text-sm outline-none focus:border-teal-700" /><button disabled={busy || !input.trim()} className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-900 text-white disabled:opacity-50" aria-label="Send"><ArrowRight size={16} /></button></form></div></div>}
   </>
 }
 
@@ -280,10 +684,12 @@ const readFile = (file) => new Promise((resolve, reject) => {
 })
 
 function ListProperty() {
+  const { locations, locationsError } = useLocationCatalog()
   const blank = {
     title: '', category: '', listingType: 'For sale', price: '', negotiable: false,
     area: '', areaUnit: 'sq. ft.', bedrooms: '', bathrooms: '', propertyAge: '', description: '',
-    state: 'Himachal Pradesh', district: '', city: '', locality: '', landmark: '', mapsLink: '',
+    state: '', district: '', tehsil: '', city: '', locality: '', locationId: '', landmark: '', mapsLink: '',
+    virtualTourUrl: '',
     contactName: '', contactMobile: '', whatsapp: '', email: '', showPhone: true,
   }
   const [form, setForm] = useState(blank)
@@ -305,6 +711,30 @@ function ListProperty() {
   const [copied, setCopied] = useState(false)
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
+  const stateLocations = locations.filter((item) => item.type === 'state')
+  const stateName = form.state
+  const stateOptions = [...new Set([...INDIAN_STATES_AND_UNION_TERRITORIES, ...stateLocations.map((item) => item.name)])].sort((a, b) => a.localeCompare(b))
+  const districtLocations = locations.filter((item) => item.type === 'district' && item.state === stateName)
+  const cityLocations = locations.filter((item) => item.type === 'city' && item.state === stateName && item.district === form.district)
+  const chosenLocation = locations.find((item) => item.id === form.locationId)
+  const selectedCity = chosenLocation?.type === 'village'
+    ? locations.find((item) => item.id === chosenLocation.parentLocationId)
+    : chosenLocation?.type === 'city' ? chosenLocation : null
+  const villageLocations = locations.filter((item) => item.type === 'village' && item.parentLocationId === selectedCity?.id)
+  const setCity = (value) => {
+    const match = cityLocations.find((item) => item.name.toLocaleLowerCase() === value.trim().toLocaleLowerCase())
+    setForm((prev) => ({
+      ...prev,
+      city: value,
+      locality: '',
+      tehsil: match?.tehsil || '',
+      locationId: match?.id || '',
+    }))
+  }
+  const setLocality = (value) => {
+    const match = villageLocations.find((item) => item.name.toLocaleLowerCase() === value.trim().toLocaleLowerCase())
+    setForm((prev) => ({ ...prev, locality: value, locationId: match?.id || selectedCity?.id || '' }))
+  }
 
   const onPhotos = async (event) => {
     const files = Array.from(event.target.files || [])
@@ -356,7 +786,7 @@ function ListProperty() {
     } catch (reason) { setError(reason.message); setStatus('') }
   }
 
-  const needsRooms = ['House', 'Apartment / Flat', 'Villa'].includes(form.category)
+  const needsRooms = ['House', 'Apartment / Flat', 'Villa', 'Studio'].includes(form.category)
 
   if (result) return <main className="min-h-screen bg-[#edf2ed] text-foreground"><div className="container mx-auto px-5 lg:px-10"><Header /><div className="flex min-h-screen items-center justify-center py-32">
     <div className="w-full max-w-lg rounded-3xl border border-[#c9a86a]/30 bg-white p-8 text-center shadow-[0_30px_80px_-30px_rgba(10,74,32,.4)] sm:p-12">
@@ -369,7 +799,7 @@ function ListProperty() {
     </div></div></div></main>
 
   return <main className="min-h-screen bg-[#edf2ed] text-foreground">
-    <div className="border-b border-border bg-[#edf2ed]"><div className="container mx-auto px-5 lg:px-10"><Header /><div className="relative flex min-h-[320px] items-end pb-12 pt-28"><div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">Owners · Agents · Builders</p><h1 className="mt-4 font-serif text-5xl tracking-tight sm:text-6xl">List your <span className="italic text-teal-700">property</span></h1><p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">Share your property with thousands of buyers and tenants across Himachal Pradesh. It only takes a few minutes — our team reviews every listing before it goes live.</p></div></div></div></div>
+    <div className="border-b border-border bg-[#edf2ed]"><div className="container mx-auto px-5 lg:px-10"><Header /><div className="relative flex min-h-[320px] items-end pb-12 pt-28"><div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">Owners · Agents · Builders</p><h1 className="mt-4 font-serif text-5xl tracking-tight sm:text-6xl">List your <span className="italic text-teal-700">property</span></h1><p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">Share your property with buyers and tenants across India. It only takes a few minutes — our team reviews every listing before it goes live.</p></div></div></div></div>
 
     <form onSubmit={submit} className="container mx-auto grid gap-6 px-5 py-12 lg:grid-cols-[1fr_340px] lg:px-10">
       <div className="space-y-6">
@@ -378,7 +808,7 @@ function ListProperty() {
             <div className="sm:col-span-2"><Field label="Property title" required><input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. 3 BHK villa with valley views" className={fieldClass} /></Field></div>
             <Field label="Category" required><select required value={form.category} onChange={(e) => set('category', e.target.value)} className={fieldClass}><option value="" disabled>Select a category</option>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
             <Field label="Listing type" required><select value={form.listingType} onChange={(e) => set('listingType', e.target.value)} className={fieldClass}>{LISTING_TYPES.map((c) => <option key={c}>{c}</option>)}</select></Field>
-            <Field label={form.listingType === 'For sale' ? 'Price' : 'Expected rent / lease'} required><input required value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="e.g. ₹ 85,00,000 or ₹ 25,000 / month" className={fieldClass} /></Field>
+            <Field label={form.listingType === 'For sale' ? 'Sale price' : form.listingType === 'For rent' ? 'Monthly rent' : 'Expected lease amount'} required><input required value={form.price} onChange={(e) => set('price', e.target.value)} placeholder={form.listingType === 'For sale' ? 'e.g. ₹ 85,00,000' : form.listingType === 'For rent' ? 'e.g. ₹ 25,000 per month' : 'e.g. ₹ 2,00,000 per year'} className={fieldClass} /></Field>
             <div className="flex items-end pb-2"><label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={form.negotiable} onChange={(e) => set('negotiable', e.target.checked)} className="h-4 w-4 rounded border-border accent-teal-800" /> Price is negotiable</label></div>
             <Field label="Area" required><input required value={form.area} onChange={(e) => set('area', e.target.value)} placeholder="e.g. 2400" className={fieldClass} /></Field>
             <Field label="Area unit" required><select value={form.areaUnit} onChange={(e) => set('areaUnit', e.target.value)} className={fieldClass}>{AREA_UNITS.map((c) => <option key={c}>{c}</option>)}</select></Field>
@@ -390,11 +820,13 @@ function ListProperty() {
         </section>
 
         <section className="rounded-2xl bg-white p-6 shadow-sm sm:p-8"><div className="mb-6 flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-900 text-white"><MapPin size={17} /></span><h2 className="font-serif text-2xl">Location</h2></div>
+          {locationsError && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Location suggestions are temporarily unavailable. You can still enter the district, city, and locality manually.</p>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="State" required><input required value={form.state} onChange={(e) => set('state', e.target.value)} className={fieldClass} /></Field>
-            <Field label="District" required><select required value={form.district} onChange={(e) => set('district', e.target.value)} className={fieldClass}><option value="" disabled>Select district</option>{HP_DISTRICTS.map((c) => <option key={c}>{c}</option>)}</select></Field>
-            <Field label="City / Town / Village" required><input required value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="e.g. Kasauli" className={fieldClass} /></Field>
-            <Field label="Locality / Area"><input value={form.locality} onChange={(e) => set('locality', e.target.value)} placeholder="e.g. Garkhal" className={fieldClass} /></Field>
+            <Field label="State / Union Territory" required><select required value={form.state} onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value, district: '', tehsil: '', city: '', locality: '', locationId: '' }))} className={fieldClass}><option value="">Select state or Union Territory</option>{stateOptions.map((name) => <option key={name} value={name}>{name}</option>)}</select></Field>
+            <Field label="District" required><input required list="himbhumi-location-districts" value={form.district} onChange={(e) => setForm((prev) => ({ ...prev, district: e.target.value, tehsil: '', city: '', locality: '', locationId: '' }))} placeholder="Search or enter a district" className={fieldClass} /><datalist id="himbhumi-location-districts">{districtLocations.map((item, index) => <option key={`${item.id}-${index}`} value={item.name} />)}</datalist></Field>
+            <Field label="Tehsil / Sub-Division"><input readOnly value={selectedCity?.tehsil || form.tehsil} className={`${fieldClass} bg-muted`} /></Field>
+            <Field label="City / Town" required><input required list="himbhumi-location-cities" value={form.city} onChange={(e) => setCity(e.target.value)} placeholder="Search a city or town" className={fieldClass} /><datalist id="himbhumi-location-cities">{cityLocations.map((item, index) => <option key={`${item.id}-${index}`} value={item.name} />)}</datalist></Field>
+            <Field label="Village / Locality"><input list="himbhumi-location-villages" value={form.locality} onChange={(e) => setLocality(e.target.value)} placeholder="Search or enter a village / locality" className={fieldClass} /><datalist id="himbhumi-location-villages">{villageLocations.map((item, index) => <option key={`${item.id}-${index}`} value={item.name} />)}</datalist></Field>
             <Field label="Nearby landmark"><input value={form.landmark} onChange={(e) => set('landmark', e.target.value)} placeholder="e.g. Near Kasauli Club" className={fieldClass} /></Field>
             <Field label="Google Maps pin (link)" hint="Open Google Maps, tap Share, and paste the link here."><input value={form.mapsLink} onChange={(e) => set('mapsLink', e.target.value)} placeholder="https://maps.google.com/..." className={fieldClass} /></Field>
           </div>
@@ -418,6 +850,7 @@ function ListProperty() {
                 {videoData ? <div className="relative aspect-video overflow-hidden rounded-xl border border-border"><video src={videoData} controls className="h-full w-full bg-black object-cover" /><button type="button" onClick={() => setVideoData('')} className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white" aria-label="Remove video"><X size={13} /></button></div>
                 : <label className="flex aspect-video cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border text-muted-foreground transition hover:border-teal-700 hover:text-teal-800"><Upload size={18} /><span className="text-[11px] font-medium">Upload video (max 8 MB)</span><input type="file" accept="video/*" onChange={onVideo} className="hidden" /></label>}
                 <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="or paste a video link (YouTube / Drive)" className={`${fieldClass} mt-2`} />
+                <Field label="360° virtual tour link" hint="Matterport, Kuula, or Pannellum HTTPS URL."><input type="url" value={form.virtualTourUrl} onChange={(e) => set('virtualTourUrl', e.target.value)} placeholder="https://my.matterport.com/show/?m=…" className={fieldClass} /></Field>
               </div>
             </div>
             {uploading && <p className="flex items-center gap-2 text-sm text-teal-800"><Loader2 size={15} className="animate-spin" /> Processing media...</p>}
