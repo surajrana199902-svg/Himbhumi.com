@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Download, Loader2, MapPin, Plus, Upload } from 'lucide-react'
+import { Loader2, MapPin, Plus } from 'lucide-react'
 import { locationLabel } from '../lib/location-utils'
 
 const parentTypes = {
@@ -25,7 +25,6 @@ export default function LocationManager() {
   const [locations, setLocations] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [search, setSearch] = useState('')
-  const [importText, setImportText] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -84,59 +83,20 @@ export default function LocationManager() {
     }
   }
 
-  const importLocations = async (event) => {
-    event.preventDefault()
-    setSaving(true)
-    setNotice('')
-    setError('')
-    try {
-      const parsed = JSON.parse(importText)
-      const batch = Array.isArray(parsed) ? parsed : parsed.locations
-      if (!Array.isArray(batch)) throw new Error('Provide a JSON array of locations or an object with a locations array.')
-      const data = await request('/api/locations/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locations: batch }),
-      })
-      setImportText('')
-      setNotice(`Import complete: ${data.created} added; ${data.existing} already existed.`)
-      await load()
-    } catch (reason) {
-      setError(reason instanceof SyntaxError ? 'The import is not valid JSON.' : reason.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const exportLocations = () => {
-    const blob = new Blob([JSON.stringify({ locations }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'himbhumi-locations.json'
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
     <section className="rounded-2xl bg-white p-6 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-teal-700"><MapPin size={15} /> Location catalog</p>
-          <h2 className="mt-2 font-serif text-2xl">Cities, towns & villages</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Add locations without changing code. Existing locations stay in place. Build the hierarchy from a district through a tehsil and city to a village.
-          </p>
-        </div>
-        <button type="button" onClick={exportLocations} disabled={!locations.length} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-50">
-          <Download size={15} /> Export JSON
-        </button>
+      <div>
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-teal-700"><MapPin size={15} /> Location catalog</p>
+        <h2 className="mt-2 font-serif text-2xl">Cities, towns & villages</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Add and search locations directly. Build the hierarchy from a district through a tehsil and city to a village.
+        </p>
       </div>
 
       {(notice || error) && <p role={error ? 'alert' : 'status'} aria-live="polite" className={`mt-4 rounded-lg px-4 py-3 text-sm ${error ? 'bg-red-50 text-red-800' : 'bg-teal-50 text-teal-900'}`}>{error || notice}</p>}
 
-      <div className="mt-6 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <form onSubmit={addLocation} className="space-y-4 rounded-xl border border-border p-4">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+        <form onSubmit={addLocation} className="space-y-4 rounded-2xl border border-border bg-[#f8faf8] p-5">
           <h3 className="font-semibold">Add one location</h3>
           <label className="block text-sm font-medium">
             Name
@@ -168,38 +128,27 @@ export default function LocationManager() {
           </button>
         </form>
 
-        <form onSubmit={importLocations} className="space-y-4 rounded-xl border border-border p-4">
-          <div>
-            <h3 className="font-semibold">Import locations in bulk</h3>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Import up to 1,000 locations per batch. Parent IDs must exist already or appear earlier in the JSON array. Export the catalog to look up IDs.</p>
+        <div className="rounded-2xl border border-border p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Location directory</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{locations.length} locations available</p>
+            </div>
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names or districts" aria-label="Search locations" className="w-full rounded-lg border border-border px-3 py-2 text-sm sm:w-auto" />
           </div>
-          <label className="block text-sm font-medium">
-            JSON location records
-            <textarea required rows={9} value={importText} onChange={(event) => setImportText(event.target.value)} className="mt-1.5 w-full rounded-lg border border-border px-3 py-2.5 font-mono text-xs" placeholder={'[\n  { "id": "new-city", "name": "Sample Town", "type": "city", "parentLocationId": "EXISTING_TEHSIL_ID" },\n  { "id": "new-village", "name": "Sample Village", "type": "village", "parentLocationId": "new-city" }\n]'} />
-          </label>
-          <button disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-teal-900 px-4 py-2.5 text-sm font-semibold text-teal-900 disabled:opacity-60">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Import JSON
-          </button>
-        </form>
-      </div>
-
-      <div className="mt-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-semibold">Existing locations <span className="text-sm font-normal text-muted-foreground">({locations.length})</span></h3>
-          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names or districts" aria-label="Search locations" className="rounded-lg border border-border px-3 py-2 text-sm" />
+          {loading ? <p className="mt-4 text-sm text-muted-foreground">Loading locations…</p> : (
+            <ul className="mt-4 grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {visibleLocations.map((location, index) => (
+                <li key={`${location.id}-${index}`} className="rounded-xl border border-border bg-[#fbfcfb] px-3 py-2.5">
+                  <p className="text-sm font-medium">{location.name}</p>
+                  <p className="mt-0.5 text-xs capitalize text-muted-foreground">{location.type} · {location.district || location.state || 'Himachal Pradesh'}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!loading && !visibleLocations.length && <p className="mt-4 text-sm text-muted-foreground">No locations match that search.</p>}
+          {!search && locations.length > visibleLocations.length && <p className="mt-3 text-xs text-muted-foreground">Showing the first {visibleLocations.length}. Search to find more.</p>}
         </div>
-        {loading ? <p className="mt-4 text-sm text-muted-foreground">Loading locations…</p> : (
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleLocations.map((location, index) => (
-              <li key={`${location.id}-${index}`} className="rounded-lg border border-border px-3 py-2.5">
-                <p className="text-sm font-medium">{location.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{location.type} · {location.district || location.state || 'Himachal Pradesh'}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-        {!loading && !visibleLocations.length && <p className="mt-4 text-sm text-muted-foreground">No locations match that search.</p>}
-        {!search && locations.length > visibleLocations.length && <p className="mt-3 text-xs text-muted-foreground">Showing the first {visibleLocations.length}. Search to find more.</p>}
       </div>
     </section>
   )

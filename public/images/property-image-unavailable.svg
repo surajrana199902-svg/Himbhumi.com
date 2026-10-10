@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title">
+  <title id="title">Property photo unavailable</title>
+  <rect width="1200" height="900" fill="#edf2ed"/>
+  <circle cx="600" cy="365" r="148" fill="#dbe7df"/>
+  <g fill="none" stroke="#527565" stroke-linecap="round" stroke-linejoin="round" stroke-width="18">
+    <path d="m510 356 90-75 90 75v101a18 18 0 0 1-18 18h-48v-83h-56v83h-40a18 18 0 0 1-18-18z"/>
+    <path d="M476 363l124-103 124 103"/>
+  </g>
+  <text x="600" y="590" fill="#244b40" font-family="Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="5" text-anchor="middle">HIMBHUMI</text>
+  <text x="600" y="642" fill="#527565" font-family="Arial, sans-serif" font-size="26" text-anchor="middle">PROPERTY PHOTO UNAVAILABLE</text>
+</svg>

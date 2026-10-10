@@ -1,4 +1,5 @@
 import './globals.css'
+import 'leaflet/dist/leaflet.css'
 import { Playfair_Display } from 'next/font/google'
 
 const playfair = Playfair_Display({ subsets: ['latin'], style: ['normal', 'italic'], display: 'swap', variable: '--font-playfair' })

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Compass, Eye, EyeOff, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, Play, Share2, Sparkles, Trees, X, Upload, Trash2, ShieldCheck, Star, Loader2, FileText, Video, Camera, BadgeCheck, Home as HomeIcon, Copy } from 'lucide-react'
+import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Compass, Eye, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, Play, Share2, Sparkles, Trees, X, Upload, Trash2, ShieldCheck, Star, Loader2, FileText, Video, Camera, BadgeCheck, Home as HomeIcon, Copy } from 'lucide-react'
 import LocationManager from '../components/location-manager'
+import PropertyLocationPicker from '../components/property-location-picker'
 import LocationSearch from '../components/location-search'
 import FavoriteButton from '../components/favorite-button'
 import PropertyFilters from '../components/property-filters'
@@ -12,6 +13,8 @@ import AgentPortal from '../components/agent-portal'
 import GoogleSignInButton from '../components/google-sign-in-button'
 import AuthPageShell from '../components/auth-page-shell'
 import InboxWorkspace from '../components/inbox-workspace'
+import AdminCrm from '../components/admin-crm'
+import { Brand, SiteFooter as Footer, SiteHeader as Header } from '../components/site-navigation'
 import useLocationCatalog from '../hooks/use-location-catalog'
 import { INDIAN_STATES_AND_UNION_TERRITORIES, LEGACY_LOCATION_NAMES } from '../lib/location-data'
 
@@ -24,28 +27,32 @@ const LOGO = 'https://customer-assets-m6fa6gv7.emergentagent.net/job_himalayan-e
 const HERO_SLIDES = [
   {
     region: 'Mountain retreats · North India',
-    image: 'https://images.unsplash.com/photo-1531932594968-e5e5e9dee95a?auto=format&fit=crop&w=2200&q=85',
+    image: '/images/hero-mountain-1600.webp',
+    imageSrcSet: '/images/hero-mountain-768.webp 768w, /images/hero-mountain-1600.webp 1600w',
     imageAlt: 'Forest-covered Himalayan mountains surrounding a quiet valley',
     tag: 'NORTH INDIA • CURATED LIVING',
     description: 'Thoughtful spaces, verified properties, and personal guidance to find your sanctuary in the hills.',
   },
   {
     region: 'Coastal villas · South India',
-    image: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=2200&q=85',
+    image: '/images/hero-coastal-1600.webp',
+    imageSrcSet: '/images/hero-coastal-768.webp 768w, /images/hero-coastal-1600.webp 1600w',
     imageAlt: 'Tropical coastal villa overlooking calm blue water',
     tag: 'SOUTH INDIA • SERENE LIVING',
     description: 'Discover verified backwater villas, coffee estates, and modern coastal architecture across the southern belt.',
   },
   {
     region: 'Metropolitan homes · Urban India',
-    image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=2200&q=85',
+    image: '/images/hero-urban-1600.webp',
+    imageSrcSet: '/images/hero-urban-768.webp 768w, /images/hero-urban-1600.webp 1600w',
     imageAlt: 'Contemporary high-rise architecture in a major city',
     tag: 'PAN-INDIA • URBAN EXCELLENCE',
     description: 'Curated luxury apartments and prime commercial spaces in thriving hubs across India.',
   },
   {
     region: 'Heritage homes · Scenic India',
-    image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=2200&q=85',
+    image: '/images/hero-estate-1600.webp',
+    imageSrcSet: '/images/hero-estate-768.webp 768w, /images/hero-estate-1600.webp 1600w',
     imageAlt: 'A serene, architect-designed country estate surrounded by greenery',
     tag: 'PAN-INDIA • HERITAGE & ESTATES',
     description: 'Connecting discerning buyers with exclusive land, heritage villas, and tranquil farmhouses nationwide.',
@@ -65,91 +72,38 @@ const api = async (path, options) => {
   return data
 }
 
-function Brand({ dark = false }) {
-  return <a href="/" aria-label={`${BRAND} home`} className="group flex items-center gap-3.5">
-    <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#f6efe1] shadow-[0_10px_30px_-10px_rgba(10,74,32,.55)] ring-1 ring-[#c9a86a]/80 transition group-hover:ring-[#c9a86a]">
-      <img src={LOGO} alt={`${BRAND} Real Estates emblem`} className="h-full w-full object-cover" style={{ transform: 'scale(2.1)', objectPosition: '50% 30%' }} />
-      <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/50" />
-    </span>
-    <span className="flex flex-col leading-none">
-      <span className={`font-serif text-[1.55rem] tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}>Him<span className="italic text-[#c9a86a]">Bhumi</span></span>
-      <span className="mt-1.5 flex items-center gap-2">
-        <span className="h-px w-4 bg-[#c9a86a]/70" />
-        <span className={`text-[9.5px] font-semibold uppercase tracking-[0.34em] ${dark ? 'text-white/60' : 'text-muted-foreground'}`}>Real Estates</span>
-      </span>
-    </span>
-  </a>
-}
-
-function Header({ dark = false }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  return <header className={`absolute inset-x-0 top-0 z-30 ${dark ? 'text-white' : 'text-foreground'}`}>
-    <div className="container mx-auto flex h-24 items-center justify-between px-5 lg:px-10">
-      <Brand dark={dark} />
-      <nav className="hidden items-center gap-6 text-sm font-medium md:flex"><a href="/properties" className="opacity-80 transition hover:opacity-100">Properties</a><a href="/rentals" className="opacity-80 transition hover:opacity-100">Rentals</a><a href="/saved" className="opacity-80 transition hover:opacity-100">Saved</a><a href="/agent" className="opacity-80 transition hover:opacity-100">Agent portal</a><a href="/login" className="opacity-80 transition hover:opacity-100">Sign in</a><a href="/#story" className="opacity-80 transition hover:opacity-100">Our story</a><a href="/admin" className="opacity-80 transition hover:opacity-100">Admin</a></nav>
-      <a href="/list-your-property" className="hidden items-center gap-2 rounded-full bg-[#c9a86a] px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-md shadow-black/15 transition hover:-translate-y-0.5 hover:bg-[#d9bc82] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#e6c887] md:flex">List your property <ArrowRight size={15} /></a>
-      <button onClick={() => setMenuOpen((open) => !open)} className="rounded-full border border-current/25 p-2 md:hidden" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen}><Menu size={19} /></button>
-    </div>
-    {menuOpen && <nav className={`mx-5 rounded-2xl border border-current/20 p-3 shadow-xl backdrop-blur-xl md:hidden ${dark ? 'bg-slate-950/90 text-white' : 'bg-white/95 text-foreground'}`}>
-      <a onClick={() => setMenuOpen(false)} href="/properties" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Properties</a>
-      <a onClick={() => setMenuOpen(false)} href="/rentals" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Rental properties</a>
-      <a onClick={() => setMenuOpen(false)} href="/list-your-property" className="mt-1 flex items-center justify-between rounded-xl bg-[#c9a86a] px-4 py-3 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-[#d9bc82] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800">List your property <ArrowRight size={15} /></a>
-      <a onClick={() => setMenuOpen(false)} href="/saved" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Saved properties</a>
-      <a onClick={() => setMenuOpen(false)} href="/agent" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Agent portal</a>
-      <a onClick={() => setMenuOpen(false)} href="/login" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Sign in</a>
-      <a onClick={() => setMenuOpen(false)} href="/#story" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Our story</a>
-      <a onClick={() => setMenuOpen(false)} href="/admin" className="block rounded-xl px-4 py-3 text-sm font-medium hover:bg-teal-50">Admin login</a>
-    </nav>}
-  </header>
-}
-
 function Home() {
   const { locations, locationsError } = useLocationCatalog()
   const [location, setLocation] = useState('')
   const [activeHeroSlide, setActiveHeroSlide] = useState(0)
-  const [heroHovered, setHeroHovered] = useState(false)
-  const [heroFocused, setHeroFocused] = useState(false)
   const [heroPaused, setHeroPaused] = useState(false)
-  const [reducedMotion, setReducedMotion] = useState(false)
   const activeSlide = HERO_SLIDES[activeHeroSlide]
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const updateMotionPreference = () => setReducedMotion(media.matches)
-    updateMotionPreference()
-    media.addEventListener('change', updateMotionPreference)
-    return () => media.removeEventListener('change', updateMotionPreference)
-  }, [])
-
-  useEffect(() => {
-    if (heroHovered || heroFocused || heroPaused || reducedMotion) return
+    if (heroPaused) return
     const timer = window.setInterval(() => {
       setActiveHeroSlide((current) => (current + 1) % HERO_SLIDES.length)
     }, 10000)
     return () => window.clearInterval(timer)
-  }, [heroFocused, heroHovered, heroPaused, reducedMotion])
+  }, [heroPaused])
 
   const selectedLocation = locations.find((item) => item.id === location)
   return <main className="bg-background text-foreground">
     <section
       aria-label="HimBhumi featured regions"
       aria-roledescription="carousel"
-      onMouseEnter={() => setHeroHovered(true)}
-      onMouseLeave={() => setHeroHovered(false)}
-      onFocusCapture={() => setHeroFocused(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setHeroFocused(false)
-      }}
-      className="group relative flex min-h-[850px] items-end overflow-hidden bg-slate-900 pb-12 text-white sm:min-h-[900px] lg:min-h-screen lg:items-center lg:pb-0"
+      className="group relative flex min-h-[min(780px,100dvh)] items-end overflow-hidden bg-slate-900 pb-10 pt-28 text-white sm:min-h-[min(850px,100dvh)] sm:pb-12 sm:pt-0 lg:min-h-screen lg:items-center lg:pb-0"
     >
       {HERO_SLIDES.map((slide, index) => (
         <img
           key={slide.region}
           src={slide.image}
+          srcSet={slide.imageSrcSet}
+          sizes="100vw"
           alt={index === activeHeroSlide ? slide.imageAlt : ''}
           aria-hidden={index !== activeHeroSlide}
-          fetchPriority={index === 0 ? 'high' : 'auto'}
-          loading={index === 0 ? 'eager' : 'lazy'}
+          fetchPriority={index === activeHeroSlide ? 'high' : index === (activeHeroSlide + 1) % HERO_SLIDES.length ? 'low' : 'auto'}
+          loading={index === activeHeroSlide || index === (activeHeroSlide + 1) % HERO_SLIDES.length ? 'eager' : 'lazy'}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out motion-reduce:transition-none ${index === activeHeroSlide ? 'opacity-80' : 'opacity-0'}`}
         />
       ))}
@@ -161,7 +115,7 @@ function Home() {
             <span className="h-px w-6 shrink-0 bg-teal-300 sm:w-9" />
             <span>{activeSlide.tag}</span>
           </div>
-          <h1 className="max-w-4xl text-left font-serif text-[2.6rem] font-medium leading-[1.05] tracking-[-0.02em] text-white [font-family:var(--font-playfair),Georgia,serif] [text-shadow:0_2px_24px_rgba(0,0,0,.45)] sm:text-6xl lg:text-[5.25rem]">Find your dream properties with <em className="italic">HimBhumi.com</em></h1>
+          <h1 className="max-w-4xl text-left font-serif text-[clamp(2.25rem,8vw,3.5rem)] font-medium leading-[1.05] tracking-[-0.02em] text-white [font-family:var(--font-playfair),Georgia,serif] [text-shadow:0_2px_24px_rgba(0,0,0,.45)] sm:text-6xl lg:text-[5.25rem]">Find your dream properties with <em className="italic">HimBhumi.com</em></h1>
           <p className="mt-6 max-w-2xl text-base leading-7 text-white/80 sm:mt-7 lg:text-lg">{activeSlide.description}</p>
         </div>
         <div className="mt-9 flex max-w-2xl flex-col gap-3 rounded-2xl border border-white/20 bg-white/10 p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,.55)] backdrop-blur-xl sm:mt-10 sm:flex-row sm:items-center">
@@ -203,8 +157,6 @@ function Home() {
     <Footer />
   </main>
 }
-
-function Footer() { return <footer className="bg-slate-950 px-5 py-12 text-white lg:px-10"><div className="container mx-auto flex flex-col justify-between gap-8 md:flex-row md:items-end"><div><Brand dark /><p className="mt-4 max-w-xs text-sm leading-6 text-white/50">Premium property, thoughtfully found across India.</p></div><div className="flex items-center gap-5 text-white/50"><a href="/rentals" className="text-xs transition hover:text-white">Rentals</a><a href="/list-your-property" className="text-xs transition hover:text-white">List property</a><a href="/track" className="text-xs transition hover:text-white">Track listing</a><Instagram size={18} /><Mail size={18} /><span className="text-xs">© 2026 {BRAND}</span></div></div></footer> }
 
 function PropertyCard({ property }) {
   return (
@@ -359,7 +311,7 @@ function Detail({ id }) {
   const submit = async (event) => { event.preventDefault(); setStatus('sending'); try { await api('inquiries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, propertyId: id, propertyTitle: property.title }) }); setStatus('sent'); setForm({ fullName: '', mobile: '', email: '', message: '', intent: 'buy' }) } catch (reason) { setStatus(reason.message) } }
   if (!property) return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-700 border-t-transparent" /></div>
   if (property.error) return <div className="flex min-h-screen flex-col items-center justify-center gap-4"><p className="font-serif text-3xl">Property not found</p><a href="/properties" className="text-teal-800">Return to collection</a></div>
-  return <main className="bg-background text-foreground"><div className="container mx-auto px-5 lg:px-10"><div className="relative pt-24"><a href="/properties" className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground"><ChevronLeft size={16} /> Back to collection</a><div className="grid gap-2 overflow-hidden rounded-2xl md:grid-cols-[1.35fr_.65fr]"><div className="relative aspect-[4/3] md:aspect-auto md:min-h-[580px]"><img src={gallery[activeImage]} alt={property.title} className="h-full w-full object-cover" /><button onClick={() => setActiveImage((activeImage + gallery.length - 1) % gallery.length)} className="absolute left-4 top-1/2 rounded-full bg-white/85 p-2 backdrop-blur" aria-label="Previous image"><ChevronLeft size={18} /></button><button onClick={() => setActiveImage((activeImage + 1) % gallery.length)} className="absolute right-4 top-1/2 rounded-full bg-white/85 p-2 backdrop-blur" aria-label="Next image"><ChevronRight size={18} /></button></div><div className="grid grid-cols-2 gap-2 md:grid-cols-1">{gallery.slice(1, 3).map((image, index) => <button key={image} onClick={() => setActiveImage(index + 1)} className="min-h-[180px] overflow-hidden"><img src={image} alt={`${property.title} view ${index + 2}`} className="h-full w-full object-cover transition hover:scale-105" /></button>)}</div></div><div className="grid gap-10 py-12 lg:grid-cols-[1fr_360px]"><div><div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-teal-700"><span>{property.type}</span><span className="h-1 w-1 rounded-full bg-teal-700" /><span>{property.location}</span></div><div className="mt-5 flex flex-wrap items-end justify-between gap-5"><div><h1 className="font-serif text-5xl tracking-tight sm:text-7xl">{property.title}</h1><p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={15} /> {property.address}</p></div><p className="font-serif text-3xl text-teal-800">{property.price}</p></div><p className="mt-10 max-w-2xl text-lg leading-8 text-muted-foreground">{property.description}</p><div className="mt-12 grid grid-cols-2 gap-4 border-y border-border py-6 sm:grid-cols-4">{property.specs?.map((spec) => <div key={spec.label}><p className="text-xs uppercase tracking-wider text-muted-foreground">{spec.label}</p><p className="mt-2 font-serif text-xl">{spec.value}</p></div>)}</div><div className="mt-12"><h2 className="font-serif text-3xl">Amenities</h2><div className="mt-5 grid gap-3 sm:grid-cols-2">{property.amenities?.map((amenity) => <div key={amenity} className="flex items-center gap-3 text-sm"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#dbe9e0] text-teal-800"><Check size={13} /></span>{amenity}</div>)}</div></div><div className="mt-12 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-[#edf2ed] p-6"><h3 className="font-serif text-2xl">Around you</h3><div className="mt-5 space-y-3">{property.nearby?.map((item) => <p key={item} className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={14} className="text-teal-700" /> {item}</p>)}</div></div><div className="rounded-2xl bg-slate-900 p-6 text-white"><h3 className="font-serif text-2xl">Find your way here</h3><p className="mt-3 text-sm leading-6 text-white/60">Explore the exact area, nearby essentials, and the landscape around this property.</p><a className="mt-6 inline-flex items-center gap-2 rounded-full bg-teal-300 px-4 py-2.5 text-sm font-semibold text-slate-950" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`} target="_blank" rel="noreferrer">Open in Google Maps <ArrowRight size={14} /></a></div></div>{property.video && <div className="mt-12 overflow-hidden rounded-2xl bg-slate-950"><div className="flex items-center gap-3 p-5 text-white"><Play size={16} className="text-teal-200" /> A sense of the setting</div><video controls muted playsInline poster={property.image} className="aspect-video w-full object-cover" src={property.video} /></div>}</div><div className="lg:pt-2"><div className="sticky top-8 rounded-2xl border border-border bg-white p-6 shadow-[0_20px_60px_rgba(16,54,48,.08)]"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Make it yours</p><h2 className="mt-3 font-serif text-3xl">Interested in this property?</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Tell us a little about what you are looking for. Our property advisors will be in touch.</p><form onSubmit={submit} className="mt-7 space-y-3"><input required value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} placeholder="Full name" className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><input required value={form.mobile} onChange={(event) => setForm({ ...form, mobile: event.target.value })} placeholder="Mobile number" className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="Email address" className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><div className="grid grid-cols-3 gap-2">{['buy', 'rent', 'agent'].map((intent) => <button type="button" key={intent} onClick={() => setForm({ ...form, intent })} className={`rounded-lg border px-2 py-2.5 text-xs capitalize transition ${form.intent === intent ? 'border-teal-700 bg-teal-900 text-white' : 'border-border text-muted-foreground hover:border-teal-700'}`}>{intent}</button>)}</div><textarea rows="4" value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} placeholder="Tell us what you have in mind" className="w-full resize-none rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><button disabled={status === 'sending'} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-900 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60">{status === 'sending' ? 'Sending...' : 'Send enquiry'} <ArrowRight size={15} /></button>{status === 'sent' && <p className="flex items-center gap-2 text-sm text-teal-800"><Check size={15} /> Thank you. We’ll be in touch shortly.</p>}{status && status !== 'sending' && status !== 'sent' && <p className="text-sm text-red-700">{status}</p>}</form><div className="mt-6 flex gap-2"><a href="tel:+911800123456" className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border py-3 text-xs font-semibold"><Phone size={14} /> Call</a><a href="https://wa.me/911800123456" target="_blank" rel="noreferrer" className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border py-3 text-xs font-semibold"><MessageCircle size={14} /> WhatsApp</a><button onClick={() => navigator.share?.({ title: property.title, url: window.location.href })} className="flex items-center justify-center rounded-lg border border-border px-3" aria-label="Share property"><Share2 size={14} /></button></div></div></div></div></div></div></main>
+  return <main className="bg-background text-foreground"><div className="container mx-auto px-5 lg:px-10"><div className="relative pt-24"><a href="/properties" className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground"><ChevronLeft size={16} /> Back to collection</a><div className="grid gap-2 overflow-hidden rounded-2xl md:grid-cols-[1.35fr_.65fr]"><div className="relative aspect-[4/3] md:aspect-auto md:min-h-[580px]"><img src={gallery[activeImage]} alt={property.title} className="h-full w-full object-cover" /><button onClick={() => setActiveImage((activeImage + gallery.length - 1) % gallery.length)} className="absolute left-4 top-1/2 rounded-full bg-white/85 p-2 backdrop-blur" aria-label="Previous image"><ChevronLeft size={18} /></button><button onClick={() => setActiveImage((activeImage + 1) % gallery.length)} className="absolute right-4 top-1/2 rounded-full bg-white/85 p-2 backdrop-blur" aria-label="Next image"><ChevronRight size={18} /></button></div><div className="grid grid-cols-2 gap-2 md:grid-cols-1">{gallery.slice(1, 3).map((image, index) => <button key={image} onClick={() => setActiveImage(index + 1)} className="min-h-[180px] overflow-hidden"><img src={image} alt={`${property.title} view ${index + 2}`} className="h-full w-full object-cover transition hover:scale-105" /></button>)}</div></div><div className="grid gap-10 py-12 lg:grid-cols-[1fr_360px]"><div><div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-teal-700"><span>{property.type}</span><span className="h-1 w-1 rounded-full bg-teal-700" /><span>{property.location}</span></div><div className="mt-5 flex flex-wrap items-end justify-between gap-5"><div><h1 className="font-serif text-5xl tracking-tight sm:text-7xl">{property.title}</h1><p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={15} /> {property.address}</p></div><p className="font-serif text-3xl text-teal-800">{property.price}</p></div><p className="mt-10 max-w-2xl text-lg leading-8 text-muted-foreground">{property.description}</p><div className="mt-12 grid grid-cols-2 gap-4 border-y border-border py-6 sm:grid-cols-4">{property.specs?.map((spec) => <div key={spec.label}><p className="text-xs uppercase tracking-wider text-muted-foreground">{spec.label}</p><p className="mt-2 font-serif text-xl">{spec.value}</p></div>)}</div><div className="mt-12"><h2 className="font-serif text-3xl">Amenities</h2><div className="mt-5 grid gap-3 sm:grid-cols-2">{property.amenities?.map((amenity) => <div key={amenity} className="flex items-center gap-3 text-sm"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#dbe9e0] text-teal-800"><Check size={13} /></span>{amenity}</div>)}</div></div><div className="mt-12 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-[#edf2ed] p-6"><h3 className="font-serif text-2xl">Around you</h3><div className="mt-5 space-y-3">{property.nearby?.map((item) => <p key={item} className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={14} className="text-teal-700" /> {item}</p>)}</div></div><div className="rounded-2xl bg-slate-900 p-6 text-white"><h3 className="font-serif text-2xl">Find your way here</h3><p className="mt-3 text-sm leading-6 text-white/60">Explore the exact area, nearby essentials, and the landscape around this property.</p><a className="mt-6 inline-flex items-center gap-2 rounded-full bg-teal-300 px-4 py-2.5 text-sm font-semibold text-slate-950" href={property.latitude != null && property.longitude != null ? `https://www.openstreetmap.org/?mlat=${encodeURIComponent(property.latitude)}&mlon=${encodeURIComponent(property.longitude)}#map=16/${encodeURIComponent(property.latitude)}/${encodeURIComponent(property.longitude)}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`} target="_blank" rel="noreferrer">{property.latitude != null && property.longitude != null ? 'Open pinned location' : 'Open in Google Maps'} <ArrowRight size={14} /></a></div></div>{property.video && <div className="mt-12 overflow-hidden rounded-2xl bg-slate-950"><div className="flex items-center gap-3 p-5 text-white"><Play size={16} className="text-teal-200" /> A sense of the setting</div><video controls muted playsInline poster={property.image} className="aspect-video w-full object-cover" src={property.video} /></div>}</div><div className="lg:pt-2"><div className="sticky top-8 rounded-2xl border border-border bg-white p-6 shadow-[0_20px_60px_rgba(16,54,48,.08)]"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">Make it yours</p><h2 className="mt-3 font-serif text-3xl">Interested in this property?</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Tell us a little about what you are looking for. Our property advisors will be in touch.</p><form onSubmit={submit} className="mt-7 space-y-3"><input required value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} placeholder="Full name" className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><input required value={form.mobile} onChange={(event) => setForm({ ...form, mobile: event.target.value })} placeholder="Mobile number" className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="Email address" className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><div className="grid grid-cols-3 gap-2">{['buy', 'rent', 'agent'].map((intent) => <button type="button" key={intent} onClick={() => setForm({ ...form, intent })} className={`rounded-lg border px-2 py-2.5 text-xs capitalize transition ${form.intent === intent ? 'border-teal-700 bg-teal-900 text-white' : 'border-border text-muted-foreground hover:border-teal-700'}`}>{intent}</button>)}</div><textarea rows="4" value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} placeholder="Tell us what you have in mind" className="w-full resize-none rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-teal-700" /><button disabled={status === 'sending'} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-900 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60">{status === 'sending' ? 'Sending...' : 'Send enquiry'} <ArrowRight size={15} /></button>{status === 'sent' && <p className="flex items-center gap-2 text-sm text-teal-800"><Check size={15} /> Thank you. We’ll be in touch shortly.</p>}{status && status !== 'sending' && status !== 'sent' && <p className="text-sm text-red-700">{status}</p>}</form><div className="mt-6 flex gap-2"><a href="tel:+911800123456" className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border py-3 text-xs font-semibold"><Phone size={14} /> Call</a><a href="https://wa.me/911800123456" target="_blank" rel="noreferrer" className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border py-3 text-xs font-semibold"><MessageCircle size={14} /> WhatsApp</a><button onClick={() => navigator.share?.({ title: property.title, url: window.location.href })} className="flex items-center justify-center rounded-lg border border-border px-3" aria-label="Share property"><Share2 size={14} /></button></div></div></div></div></div></div></main>
 }
 
 function AdminDashboard() {
@@ -385,7 +337,6 @@ function AdminWorkspace() {
   const [loadingAgents, setLoadingAgents] = useState(true)
   const [notice, setNotice] = useState('')
   const [compose, setCompose] = useState({ to: '', subject: '', message: '', enquiryId: '' })
-  const [filter, setFilter] = useState('all')
 
   const load = async () => {
     setLoadingAgents(true)
@@ -423,11 +374,14 @@ function AdminWorkspace() {
     } catch (error) { setNotice(error.message) }
   }
 
-  const updateInquiry = async (id, status) => {
+  const updateInquiry = async (id, updates) => {
     try {
-      await api(`inquiries/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      await api(`inquiries/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
       await load()
-    } catch (error) { setNotice(error.message) }
+    } catch (error) {
+      setNotice(error.message)
+      throw error
+    }
   }
 
   const reviewAgent = async (id, status) => {
@@ -446,10 +400,15 @@ function AdminWorkspace() {
     } catch (error) { setNotice(error.message) }
   }
 
-  const messageEnquiry = (item) => setCompose({ to: item.email || '', subject: `Re: ${item.propertyTitle || 'Your HimBhumi enquiry'}`, message: `Hello ${item.fullName},
-
-Thank you for your enquiry.`, enquiryId: item.id })
-  const visibleInquiries = inquiries.filter((item) => filter === 'all' || item.status === filter)
+  const messageEnquiry = (item) => {
+    setCompose({
+      to: item.email || '',
+      subject: `Re: ${item.propertyTitle || 'Your HimBhumi enquiry'}`,
+      message: `Hello ${item.fullName || 'there'},\n\nThank you for your enquiry.`,
+      enquiryId: item.id,
+    })
+    window.requestAnimationFrame(() => document.getElementById('admin-message-compose')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+  }
 
   return (
     <main className="min-h-screen bg-[#f5f7f4] text-foreground">
@@ -470,6 +429,13 @@ Thank you for your enquiry.`, enquiryId: item.id })
           <p className="mt-3 text-muted-foreground">Publish, sell, and follow up every HimBhumi property enquiry.</p>
         </div>
         {notice && <p role="status" className="rounded-lg bg-teal-50 px-4 py-3 text-sm text-teal-900">{notice}</p>}
+        <AdminCrm
+          inquiries={inquiries}
+          onUpdate={updateInquiry}
+          onMessage={messageEnquiry}
+          onRefresh={load}
+          refreshing={loadingAgents}
+        />
         <LocationManager />
         <InboxWorkspace compact />
         <section className="rounded-2xl bg-white p-6 shadow-sm">
@@ -486,20 +452,47 @@ Thank you for your enquiry.`, enquiryId: item.id })
           {agentsError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">Could not load agent applications: {agentsError}. Retry using Refresh.</p>}
           <div className="mt-5 space-y-3">
             {loadingAgents && agents.length === 0 ? <p role="status" className="text-sm text-muted-foreground">Loading agent applications…</p>
-              : agents.length ? agents.map((agent) => <article key={agent.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4"><div className="min-w-0"><p className="font-semibold">{agent.name}</p><p className="text-sm text-muted-foreground">{agent.email}{agent.phone ? ` · ${agent.phone}` : ''}</p><p className="mt-1 text-xs text-muted-foreground">Applied {new Date(agent.createdAt).toLocaleString()}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${agent.status === 'pending' ? 'bg-amber-100 text-amber-900' : agent.status === 'approved' ? 'bg-teal-100 text-teal-900' : 'bg-slate-100 text-slate-700'}`}>{agent.status}</span>{agent.status === 'pending' && <><button type="button" onClick={() => reviewAgent(agent.id, 'approved')} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">Approve</button><button type="button" onClick={() => reviewAgent(agent.id, 'rejected')} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-red-700">Reject</button></>}</div></article>)
+              : agents.length ? agents.map((agent) => <article key={agent.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4"><div className="min-w-0"><p className="font-semibold">{agent.name}</p><p className="text-sm text-muted-foreground">{agent.email}{agent.phone ? ` · ${agent.phone}` : ''}</p><p className="mt-1 text-xs text-muted-foreground">Applied {new Date(agent.createdAt).toLocaleString()}{agent.applicationSource === 'google' ? ' · Google sign-in request' : ''}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${agent.status === 'pending' ? 'bg-amber-100 text-amber-900' : agent.status === 'approved' ? 'bg-teal-100 text-teal-900' : 'bg-slate-100 text-slate-700'}`}>{agent.status}</span>{agent.status === 'pending' && <><button type="button" onClick={() => reviewAgent(agent.id, 'approved')} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">Approve</button><button type="button" onClick={() => reviewAgent(agent.id, 'rejected')} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-red-700">Reject</button></>}</div></article>)
                 : !agentsError && <p className="text-sm text-muted-foreground">No agent applications yet.</p>}
           </div>
         </section>
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">Properties</h2><span className="text-sm text-muted-foreground">{properties.length} total</span></div>
-          <div className="mt-5 space-y-3">{properties.length ? properties.map((property) => <div key={property.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-border p-4"><img src={property.image || LOGO} alt="" className="h-16 w-24 rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-serif text-xl">{property.title}</p><p className="text-sm text-muted-foreground">{property.location} · {property.price}</p><span className="text-xs font-semibold uppercase text-teal-700">{property.status || 'published'}</span></div><div className="flex flex-wrap gap-2"><button onClick={() => updateProperty(property.id, property.status === 'sold' ? 'published' : 'sold')} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">{property.status === 'sold' ? 'Restore' : 'Mark sold'}</button><button onClick={() => updateProperty(property.id, property.status === 'published' ? 'draft' : 'published')} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">{property.status === 'published' ? 'Unpublish' : 'Publish'}</button></div></div>) : <p className="text-sm text-muted-foreground">No properties found.</p>}</div>
-        </section>
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">Enquiries</h2><select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded-lg border border-border px-3 py-2 text-sm"><option value="all">All statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></div>
-          <div className="mt-5 space-y-3">{visibleInquiries.length ? visibleInquiries.map((item) => <div key={item.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{item.fullName} · {item.mobile}</p><p className="text-sm text-teal-800">{item.propertyTitle || item.propertyId}</p><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.message || 'No message provided.'}</p>{item.email && <p className="mt-2 text-xs text-muted-foreground">{item.email}</p>}</div><div className="flex flex-wrap gap-2"><select value={item.status || 'new'} onChange={(event) => updateInquiry(item.id, event.target.value)} className="rounded-lg border border-border px-2 py-2 text-xs"><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select>{item.email && <button onClick={() => messageEnquiry(item)} className="rounded-lg bg-teal-900 px-3 py-2 text-xs font-semibold text-white">Message</button>}</div></div></div>) : <p className="text-sm text-muted-foreground">No enquiries yet.</p>}</div>
+        <section className="rounded-2xl bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">Inventory</p>
+              <h2 className="mt-1 font-serif text-2xl">Property management</h2>
+            </div>
+            <span className="rounded-full bg-[#edf2ed] px-3 py-1.5 text-sm font-medium text-slate-700">{properties.length} total</span>
+          </div>
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            {properties.length ? properties.map((property) => {
+              const status = property.status || 'published'
+              const isPublished = status === 'published' || status === 'approved'
+              const isSold = status === 'sold'
+              return <article key={property.id} className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+                <div className="flex gap-4 p-4">
+                  <img src={property.image || LOGO} alt="" className="h-24 w-28 shrink-0 rounded-xl bg-[#edf2ed] object-cover sm:h-28 sm:w-36" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h3 className="font-serif text-lg leading-6">{property.title}</h3>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${isSold ? 'bg-amber-100 text-amber-900' : isPublished ? 'bg-teal-100 text-teal-900' : 'bg-slate-100 text-slate-700'}`}>{isSold ? 'Sold' : isPublished ? 'Published' : 'Unpublished'}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{property.location} · {property.price}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{property.type || 'Property'}{property.area ? ` · ${property.area}` : ''}</p>
+                    <a href={`/properties/${property.id}`} className="mt-2 inline-flex text-xs font-semibold text-teal-800 hover:underline">View listing <ArrowRight size={13} className="ml-1" /></a>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 border-t border-border bg-[#f8faf8] p-3">
+                  {!isPublished && <button type="button" onClick={() => updateProperty(property.id, 'published')} disabled={loadingAgents} className="inline-flex items-center justify-center rounded-lg bg-teal-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50">Publish</button>}
+                  {isPublished && <button type="button" onClick={() => updateProperty(property.id, 'draft')} disabled={loadingAgents} className="inline-flex items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-teal-700 disabled:opacity-50">Unpublish</button>}
+                  {!isSold && <button type="button" onClick={() => updateProperty(property.id, 'sold')} disabled={loadingAgents} className="inline-flex items-center justify-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 disabled:opacity-50">Mark as Sold</button>}
+                </div>
+              </article>
+            }) : <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground lg:col-span-2">No properties found.</p>}
+          </div>
         </section>
         <section className="grid gap-8 lg:grid-cols-[1fr_1fr]">
-          <form onSubmit={sendMessage} className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Inbox · compose</h2><div className="mt-5 space-y-3"><input required type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} placeholder="Recipient email" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><input required value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} placeholder="Subject" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><textarea required rows="7" value={compose.message} onChange={(event) => setCompose({ ...compose, message: event.target.value })} placeholder="Message" className="w-full resize-none rounded-lg border border-border px-3 py-2.5 text-sm" /><button className="rounded-lg bg-teal-900 px-5 py-3 text-sm font-semibold text-white">Send and store message</button></div></form>
+          <form id="admin-message-compose" onSubmit={sendMessage} className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Inbox · compose</h2><div className="mt-5 space-y-3"><input required type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} placeholder="Recipient email" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><input required value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} placeholder="Subject" className="w-full rounded-lg border border-border px-3 py-2.5 text-sm" /><textarea required rows="7" value={compose.message} onChange={(event) => setCompose({ ...compose, message: event.target.value })} placeholder="Message" className="w-full resize-none rounded-lg border border-border px-3 py-2.5 text-sm" /><button className="rounded-lg bg-teal-900 px-5 py-3 text-sm font-semibold text-white">Send and store message</button></div></form>
           <div className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="font-serif text-2xl">Sent messages</h2><div className="mt-5 space-y-3">{messages.length ? messages.map((item) => <div key={item.id} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-3"><p className="font-semibold">{item.subject}</p><span className="text-xs uppercase text-teal-700">{item.status}</span></div><p className="mt-1 text-xs text-muted-foreground">To: {item.to} · {new Date(item.createdAt).toLocaleString()}</p><p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">{item.message}</p></div>) : <p className="text-sm text-muted-foreground">No messages stored yet.</p>}</div></div>
         </section>
       </div>
@@ -508,27 +501,11 @@ Thank you for your enquiry.`, enquiryId: item.id })
 }
 function Admin() {
   const [authenticated, setAuthenticated] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     api('admin/session').then(() => setAuthenticated(true)).catch(() => {}).finally(() => setLoading(false))
   }, [])
-
-  const login = async (event) => {
-    event.preventDefault()
-    setError('')
-    try {
-      await api('admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase(), password }) })
-      setAuthenticated(true)
-      setPassword('')
-    } catch (reason) {
-      setError(reason.message)
-    }
-  }
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#edf2ed]"><Loader2 className="animate-spin text-teal-800" /></div>
   if (authenticated) return <AdminWorkspace />
@@ -539,28 +516,10 @@ function Admin() {
       description="Manage property listings, review enquiries, and keep the HimBhumi collection up to date."
       Icon={ShieldCheck}
     >
-      <form onSubmit={login}>
+      <div>
         <GoogleSignInButton role="admin" label="Sign in as an administrator with Google" />
-        {error && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
         <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">Access is limited to Google accounts authorized by the site administrator.</p>
-        <details className="mt-6 border-t border-border pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700 transition hover:text-teal-900">Use legacy administrator sign in</summary>
-          <div className="mt-5 space-y-4">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-800">Admin email</span>
-              <input required autoComplete="username" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Admin email" className="w-full rounded-xl border border-border bg-[#f7f8f5] px-4 py-3 text-sm outline-none transition focus:border-teal-700 focus:bg-white focus:ring-2 focus:ring-teal-800/10" />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-800">Password</span>
-              <span className="relative block">
-                <input required autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" className="w-full rounded-xl border border-border bg-[#f7f8f5] px-4 py-3 pr-12 text-sm outline-none transition focus:border-teal-700 focus:bg-white focus:ring-2 focus:ring-teal-800/10" />
-                <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-muted-foreground transition hover:text-teal-800">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-              </span>
-            </label>
-            <button className="w-full rounded-full bg-teal-900 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800">Sign in with password</button>
-          </div>
-        </details>
-      </form>
+      </div>
     </AuthPageShell>
   )
 }
@@ -688,7 +647,7 @@ function ListProperty() {
   const blank = {
     title: '', category: '', listingType: 'For sale', price: '', negotiable: false,
     area: '', areaUnit: 'sq. ft.', bedrooms: '', bathrooms: '', propertyAge: '', description: '',
-    state: '', district: '', tehsil: '', city: '', locality: '', locationId: '', landmark: '', mapsLink: '',
+    state: '', district: '', tehsil: '', city: '', locality: '', locationId: '', landmark: '', mapsLink: '', latitude: '', longitude: '',
     virtualTourUrl: '',
     contactName: '', contactMobile: '', whatsapp: '', email: '', showPhone: true,
   }
@@ -828,7 +787,14 @@ function ListProperty() {
             <Field label="City / Town" required><input required list="himbhumi-location-cities" value={form.city} onChange={(e) => setCity(e.target.value)} placeholder="Search a city or town" className={fieldClass} /><datalist id="himbhumi-location-cities">{cityLocations.map((item, index) => <option key={`${item.id}-${index}`} value={item.name} />)}</datalist></Field>
             <Field label="Village / Locality"><input list="himbhumi-location-villages" value={form.locality} onChange={(e) => setLocality(e.target.value)} placeholder="Search or enter a village / locality" className={fieldClass} /><datalist id="himbhumi-location-villages">{villageLocations.map((item, index) => <option key={`${item.id}-${index}`} value={item.name} />)}</datalist></Field>
             <Field label="Nearby landmark"><input value={form.landmark} onChange={(e) => set('landmark', e.target.value)} placeholder="e.g. Near Kasauli Club" className={fieldClass} /></Field>
-            <Field label="Google Maps pin (link)" hint="Open Google Maps, tap Share, and paste the link here."><input value={form.mapsLink} onChange={(e) => set('mapsLink', e.target.value)} placeholder="https://maps.google.com/..." className={fieldClass} /></Field>
+            <Field label="Google Maps link (optional)" hint="You can still include a share link as a reference."><input value={form.mapsLink} onChange={(e) => set('mapsLink', e.target.value)} placeholder="https://maps.google.com/..." className={fieldClass} /></Field>
+            <div className="sm:col-span-2">
+              <PropertyLocationPicker
+                latitude={form.latitude}
+                longitude={form.longitude}
+                onChange={(latitude, longitude) => setForm((prev) => ({ ...prev, latitude, longitude }))}
+              />
+            </div>
           </div>
         </section>
 
@@ -849,7 +815,7 @@ function ListProperty() {
               <div><span className="mb-2 flex items-center gap-1 text-sm font-medium"><Video size={15} className="text-teal-700" /> Video <span className="text-xs font-normal text-muted-foreground">(optional)</span></span>
                 {videoData ? <div className="relative aspect-video overflow-hidden rounded-xl border border-border"><video src={videoData} controls className="h-full w-full bg-black object-cover" /><button type="button" onClick={() => setVideoData('')} className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white" aria-label="Remove video"><X size={13} /></button></div>
                 : <label className="flex aspect-video cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border text-muted-foreground transition hover:border-teal-700 hover:text-teal-800"><Upload size={18} /><span className="text-[11px] font-medium">Upload video (max 8 MB)</span><input type="file" accept="video/*" onChange={onVideo} className="hidden" /></label>}
-                <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="or paste a video link (YouTube / Drive)" className={`${fieldClass} mt-2`} />
+                <Field label="Video link (optional)" hint="Paste a YouTube or Google Drive link."><input name="videoUrl" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://…" className={`${fieldClass} mt-2`} /></Field>
                 <Field label="360° virtual tour link" hint="Matterport, Kuula, or Pannellum HTTPS URL."><input type="url" value={form.virtualTourUrl} onChange={(e) => set('virtualTourUrl', e.target.value)} placeholder="https://my.matterport.com/show/?m=…" className={fieldClass} /></Field>
               </div>
             </div>
@@ -923,7 +889,7 @@ function Tracker() {
   return <main className="min-h-screen bg-[#edf2ed] text-foreground">
     <div className="border-b border-border bg-[#edf2ed]"><div className="container mx-auto px-5 lg:px-10"><Header /><div className="relative flex min-h-[300px] items-end pb-12 pt-28"><div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700">Track your submission</p><h1 className="mt-4 font-serif text-5xl tracking-tight sm:text-6xl">My <span className="italic text-teal-700">listing</span></h1><p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">Enter the listing ID you received after submitting your property to see its current status.</p></div></div></div></div>
     <div className="container mx-auto px-5 py-12 lg:px-10"><div className="mx-auto max-w-xl">
-      <form onSubmit={submit} className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm sm:flex-row"><input value={listingId} onChange={(e) => setListingId(e.target.value)} placeholder="e.g. HB-A1B2C3" className={`${fieldClass} flex-1 uppercase`} /><button disabled={status === 'loading'} className="flex items-center justify-center gap-2 rounded-lg bg-teal-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60">{status === 'loading' ? <Loader2 size={16} className="animate-spin" /> : <Compass size={16} />} Track</button></form>
+      <form onSubmit={submit} className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm sm:flex-row"><label className="flex-1 text-sm font-medium text-slate-800">Listing ID<input required name="listingId" value={listingId} onChange={(e) => setListingId(e.target.value)} placeholder="e.g. HB-A1B2C3" className={`${fieldClass} mt-1.5 uppercase`} /></label><button disabled={status === 'loading'} className="flex items-center justify-center gap-2 rounded-lg bg-teal-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60">{status === 'loading' ? <Loader2 size={16} className="animate-spin" /> : <Compass size={16} />} Track</button></form>
       {status && status !== 'loading' && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{status}</p>}
       {result && <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
         <div className="flex items-center gap-4 border-b border-border p-5">{result.image && <img src={result.image} alt="" className="h-16 w-24 rounded-lg object-cover" />}<div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="font-serif text-2xl">{result.title}</h2>{result.verified && <span className="flex items-center gap-1 rounded-full bg-[#dbe9e0] px-2 py-0.5 text-[10px] font-semibold text-teal-800"><BadgeCheck size={11} /> Verified</span>}{result.featured && <span className="flex items-center gap-1 rounded-full bg-[#c9a86a]/20 px-2 py-0.5 text-[10px] font-semibold text-[#8a6d33]"><Star size={11} /> Featured</span>}</div><p className="mt-1 text-xs text-muted-foreground">{result.listingId} · {result.category} · {result.listingType} · {[result.city, result.district].filter(Boolean).join(', ')}</p></div><span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusMeta(result.status).cls}`}>{statusMeta(result.status).text}</span></div>

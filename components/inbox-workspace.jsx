@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ArrowUpRight, Inbox, Send } from 'lucide-react'
+import GoogleSignInButton from './google-sign-in-button'
 
 async function inboxRequest(path, options) {
   const response = await fetch(path, options)
@@ -143,7 +144,18 @@ export default function InboxWorkspace({ compact = false }) {
         {error.includes('verified account') && <span className="ml-2 inline-flex gap-3"><a href="/login" className="font-semibold underline">User sign in</a><a href="/agent" className="font-semibold underline">Agent sign in</a></span>}
       </div>}
 
-      {!actor && !loading && error.includes('verified account') && <p className="mt-3 text-sm text-muted-foreground">The inbox is available to signed-in users, approved agents, and administrators.</p>}
+      {!actor && !loading && error.includes('verified account') && <div className="mt-5 rounded-xl border border-border bg-[#f7f8f5] p-5 sm:p-6">
+        <h2 className="font-serif text-2xl">Your messages, all in one place</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Create a HimBhumi account or sign in with Google to contact property advisors and continue conversations. You can browse the property collection without signing in.</p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="w-full sm:max-w-sm"><GoogleSignInButton role="user" label="Create account or sign in with Google" /></div>
+          <a href="/properties" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-teal-900 px-4 py-3 text-sm font-semibold text-teal-900 transition hover:bg-white">Browse properties as a guest</a>
+        </div>
+      </div>}
+      {!actor && !loading && error && !error.includes('verified account') && <div className="mt-5 rounded-xl border border-border bg-[#f7f8f5] p-5">
+        <p className="text-sm leading-6 text-muted-foreground">You can continue browsing while the inbox is unavailable.</p>
+        <a href="/properties" className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-teal-900 px-4 py-2.5 text-sm font-semibold text-teal-900 transition hover:bg-white">Browse properties</a>
+      </div>}
 
       {actor && showCompose ? (
         <form onSubmit={startConversation} className="mt-5 grid gap-4 rounded-xl bg-[#f7f8f5] p-4 sm:grid-cols-2">
