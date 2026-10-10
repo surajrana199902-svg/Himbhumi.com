@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'himbhumi:saved-properties'
 let agentSessionPromise
+let favoriteWriteQueue = Promise.resolve()
+let favoriteSyncPromise
 
 function readSavedIds() {
   try {
@@ -14,29 +16,58 @@ function readSavedIds() {
   }
 }
 
-export async function syncFavorites() {
-  const saved = readSavedIds()
-  const response = await fetch('/api/user/favorites')
-  const data = await response.json()
-  if (!response.ok) throw new Error(data?.error || 'Could not load saved properties')
-  const merged = [...new Set([...saved, ...(Array.isArray(data.favoriteIds) ? data.favoriteIds : [])])]
-  const syncResponse = await fetch('/api/user/favorites', {
+function writeSavedIds(ids) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
+  window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+}
+
+function sameIds(first, second) {
+  return first.length === second.length && first.every((id, index) => id === second[index])
+}
+
+function queueFavoriteWrite(operation) {
+  const result = favoriteWriteQueue.then(operation)
+  favoriteWriteQueue = result.catch(() => {})
+  return result
+}
+
+async function persistLocalFavorites() {
+  const favoriteIds = readSavedIds()
+  const response = await fetch('/api/user/favorites', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ favoriteIds: merged }),
+    body: JSON.stringify({ favoriteIds }),
   })
-  const syncData = await syncResponse.json()
-  if (!syncResponse.ok) throw new Error(syncData?.error || 'Could not sync saved properties')
-  const validIds = Array.isArray(syncData.favoriteIds) ? syncData.favoriteIds : merged
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(validIds))
-  window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
-  return validIds
+  const data = await response.json()
+  if (!response.ok) throw new Error(data?.error || 'Could not sync saved properties')
+  const validIds = Array.isArray(data.favoriteIds) ? data.favoriteIds : favoriteIds
+  const currentIds = readSavedIds()
+  if (sameIds(currentIds, favoriteIds)) writeSavedIds(validIds)
+  return sameIds(currentIds, favoriteIds) ? validIds : currentIds
+}
+
+export function syncFavorites() {
+  if (!favoriteSyncPromise) {
+    favoriteSyncPromise = queueFavoriteWrite(async () => {
+      const response = await fetch('/api/user/favorites')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || 'Could not load saved properties')
+
+      const merged = [...new Set([...readSavedIds(), ...(Array.isArray(data.favoriteIds) ? data.favoriteIds : [])])]
+      writeSavedIds(merged)
+      return persistLocalFavorites()
+    }).finally(() => {
+      favoriteSyncPromise = null
+    })
+  }
+  return favoriteSyncPromise
 }
 
 export default function useFavorites() {
   const [savedIds, setSavedIds] = useState([])
   const [ready, setReady] = useState(false)
   const [accountAuthenticated, setAccountAuthenticated] = useState(false)
+  const [syncError, setSyncError] = useState('')
 
   useEffect(() => {
     const saved = readSavedIds()
@@ -65,10 +96,14 @@ export default function useFavorites() {
       .then((session) => {
         if (!active || !session.authenticated) return null
         setAccountAuthenticated(true)
+        setSyncError('')
         return syncFavorites()
       })
       .then((merged) => { if (active && merged) setSavedIds(merged) })
-      .catch((error) => console.error('Saved property sync failed:', error.message))
+      .catch((error) => {
+        if (active) setSyncError(error.message || 'Could not sync saved properties')
+        console.error('Saved property sync failed:', error.message)
+      })
 
     return () => {
       active = false
@@ -77,30 +112,23 @@ export default function useFavorites() {
   }, [])
 
   const toggle = useCallback(async (propertyId) => {
-    const next = savedIds.includes(propertyId)
-      ? savedIds.filter((id) => id !== propertyId)
-      : [...savedIds, propertyId]
+    const currentIds = readSavedIds()
+    const next = currentIds.includes(propertyId)
+      ? currentIds.filter((id) => id !== propertyId)
+      : [...currentIds, propertyId]
     setSavedIds(next)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+    writeSavedIds(next)
 
     if (!accountAuthenticated) return
 
     try {
-      const response = await fetch('/api/user/favorites', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ favoriteIds: next }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || 'Could not sync saved properties')
+      await queueFavoriteWrite(persistLocalFavorites)
+      setSyncError('')
     } catch (error) {
-      setSavedIds(savedIds)
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(savedIds))
-      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+      setSyncError(error.message || 'Could not sync saved properties')
       throw error
     }
-  }, [accountAuthenticated, savedIds])
+  }, [accountAuthenticated])
 
-  return { savedIds, ready, toggle }
+  return { savedIds, ready, toggle, accountAuthenticated, syncError }
 }

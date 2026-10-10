@@ -164,7 +164,7 @@ export default function PropertyDetailActions({ propertyId }) {
 
   return (
     <>
-      <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-border bg-white/95 p-1.5 shadow-xl backdrop-blur">
+      <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-white/95 p-2 shadow-xl backdrop-blur sm:inset-x-auto sm:bottom-5 sm:right-5 sm:flex-nowrap sm:gap-2 sm:rounded-full sm:p-1.5">
         {inquiryThreadId && <a href={`/inbox?thread=${encodeURIComponent(inquiryThreadId)}`} className="rounded-full bg-[#edf2ed] px-3 py-2 text-xs font-semibold text-teal-900">Continue enquiry</a>}
         <span className="inline-flex items-center gap-1 px-2 text-xs font-medium text-slate-700" aria-label={`${views} property views`}><Eye size={14} /> {views}</span>
         <button ref={messageTriggerRef} type="button" onClick={() => setMessageOpen(true)} className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-2.5 text-xs font-semibold text-teal-900 transition hover:border-teal-800"><MessageCircle size={15} /> Message</button>
@@ -174,7 +174,7 @@ export default function PropertyDetailActions({ propertyId }) {
       {inquiryInboxError && <p role="status" className="fixed bottom-20 right-5 z-40 max-w-sm rounded-xl border border-amber-200 bg-white px-4 py-3 text-xs text-amber-900 shadow-lg">{inquiryInboxError}</p>}
       {messageOpen && (
         <div className="fixed inset-0 z-[59] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setMessageOpen(false) }}>
-          <section ref={messageDialogRef} role="dialog" aria-modal="true" aria-labelledby="property-message-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
+          <section ref={messageDialogRef} role="dialog" aria-modal="true" aria-labelledby="property-message-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">Private conversation</p><h2 id="property-message-title" className="mt-2 font-serif text-3xl">Ask about this property</h2><p className="mt-2 text-sm text-muted-foreground">{propertyTitle}</p></div>
               <button type="button" onClick={() => setMessageOpen(false)} aria-label="Close message form" className="rounded-full p-2 text-muted-foreground hover:bg-[#edf2ed]"><X size={18} /></button>

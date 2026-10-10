@@ -7,6 +7,11 @@ import AuthPageShell from './auth-page-shell'
 import GoogleSignInButton from './google-sign-in-button'
 import InboxWorkspace from './inbox-workspace'
 
+const agentAuthErrors = {
+  agent_identity_mismatch: 'This application is linked to a different Google account. Please contact an administrator.',
+  agent_application_unavailable: 'Your agent request could not be saved. Please try again later.',
+}
+
 async function request(path, options) {
   const response = await fetch(path, options)
   const data = await response.json()
@@ -21,6 +26,7 @@ export default function AgentPortal() {
   const [mode, setMode] = useState('signin')
   const [signup, setSignup] = useState({ name: '', email: '', phone: '', password: '' })
   const [signupSubmitted, setSignupSubmitted] = useState(false)
+  const [application, setApplication] = useState(null)
   const [listings, setListings] = useState([])
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({})
@@ -28,6 +34,7 @@ export default function AgentPortal() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [checkingApproval, setCheckingApproval] = useState(false)
 
   const register = async (event) => {
     event.preventDefault()
@@ -56,10 +63,13 @@ export default function AgentPortal() {
   }
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search)
+    setError(agentAuthErrors[query.get('error')] || '')
     request('/api/agent/session')
       .then(async (data) => {
         setAuthenticated(data.authenticated)
         setUsername(data.username || '')
+        setApplication(data.application || null)
         if (data.authenticated) {
           try { await syncFavorites() } catch (reason) { setNotice(`Signed in, but saved-property sync failed: ${reason.message}`) }
           await loadListings()
@@ -68,6 +78,31 @@ export default function AgentPortal() {
       .catch((reason) => setError(reason.message))
       .finally(() => setLoading(false))
   }, [])
+
+  const checkApproval = async () => {
+    setCheckingApproval(true)
+    setError('')
+    try {
+      const data = await request('/api/agent/session')
+      setAuthenticated(data.authenticated)
+      setUsername(data.username || '')
+      setApplication(data.application || null)
+      if (data.authenticated) {
+        try {
+          await syncFavorites()
+        } catch (reason) {
+          setNotice(`Approved and signed in, but saved-property sync failed: ${reason.message}`)
+        }
+        await loadListings()
+      } else if (data.application?.status === 'pending') {
+        setNotice('Your request is still waiting for administrator approval.')
+      }
+    } catch (reason) {
+      setError(reason.message)
+    } finally {
+      setCheckingApproval(false)
+    }
+  }
 
   const signIn = async (event) => {
     event.preventDefault()
@@ -123,12 +158,39 @@ export default function AgentPortal() {
       description="Apply for an agent account or sign in after your application has been approved."
       Icon={ShieldCheck}
     >
+      {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {application ? (
+        <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5" aria-live="polite">
+          <p className="text-xs font-semibold uppercase tracking-[0.15em] text-amber-800">Agent application</p>
+          <h2 className="mt-2 font-serif text-2xl text-slate-900">
+            {application.status === 'pending' ? 'Your request is with the admin' : 'Your request was not approved'}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            {application.status === 'pending'
+              ? `You requested agent access with ${application.email}. An administrator must approve the request before you can use the agent workspace.`
+              : application.status === 'rejected'
+                ? `The application for ${application.email} was not approved. You can submit a new request by signing in with Google again.`
+                : `The approved application for ${application.email} is linked to a different Google account. Contact an administrator for help.`}
+          </p>
+          {notice && <p role="status" className="mt-3 text-sm text-teal-900">{notice}</p>}
+          <div className="mt-4 flex flex-wrap gap-3">
+            {application.status === 'pending'
+              ? <button type="button" onClick={checkApproval} disabled={checkingApproval} className="inline-flex items-center gap-2 rounded-full bg-teal-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                {checkingApproval && <Loader2 size={15} className="animate-spin" />} Check approval
+              </button>
+              : application.status === 'rejected'
+                ? <GoogleSignInButton role="agent" label="Request agent access again with Google" />
+                : null}
+            <a href="/login" className="rounded-full border border-border bg-white px-4 py-2.5 text-sm font-semibold text-teal-900">Continue as a regular user</a>
+          </div>
+        </section>
+      ) : (
+        <>
       <div className="mt-5 grid grid-cols-2 rounded-xl bg-[#f2f4f1] p-1" aria-label="Agent account options">
         <button type="button" aria-pressed={mode === 'signin'} onClick={() => { setMode('signin'); setError('') }} className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition ${mode === 'signin' ? 'bg-white text-teal-900 shadow-sm' : 'text-muted-foreground'}`}>Sign in</button>
         <button type="button" aria-pressed={mode === 'signup'} onClick={() => { setMode('signup'); setError('') }} className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition ${mode === 'signup' ? 'bg-white text-teal-900 shadow-sm' : 'text-muted-foreground'}`}>Apply as an agent</button>
       </div>
       {notice && <p role="status" className="mt-4 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">{notice}</p>}
-      {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {mode === 'signup' ? (
         <form onSubmit={register} className="mt-5 space-y-4">
           <label className="block text-sm font-medium text-slate-800">Full name
@@ -167,6 +229,8 @@ export default function AgentPortal() {
             </details>
           </form>
           {signupSubmitted && <p className="mt-4 text-center text-xs text-muted-foreground">Application received. Your agent account will be enabled after review.</p>}
+        </>
+      )}
         </>
       )}
       <a href="/login" className="mt-6 block text-center text-sm font-medium text-teal-800 transition hover:text-teal-950 hover:underline">Not an agent? Sign in as a user</a>

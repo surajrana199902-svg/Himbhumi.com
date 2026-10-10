@@ -10,13 +10,13 @@ let clientPromise
 let locationCatalogInitialization
 const allowDemoReads = process.env.NODE_ENV !== 'production'
 const legacyLocationCatalog = createLegacyLocationCatalog()
-const images = [
-  'https://images.unsplash.com/photo-1759123136466-63b3c37db41f?auto=format&fit=crop&w=1400&q=85',
-  'https://images.unsplash.com/photo-1767634854859-db8255389e64?auto=format&fit=crop&w=1400&q=85',
-  'https://images.unsplash.com/photo-1780391592801-5e8867523492?auto=format&fit=crop&w=1400&q=85',
-  'https://images.unsplash.com/photo-1589891685391-b37508e8df4c?auto=format&fit=crop&w=1400&q=85',
-  'https://images.unsplash.com/photo-1531932594968-e5e5e9dee95a?auto=format&fit=crop&w=1400&q=85',
-]
+const unavailablePropertyImage = '/images/property-image-unavailable.svg'
+const unavailablePropertyImageIds = new Set([
+  'photo-1759123136466-63b3c37db41f',
+  'photo-1767634854859-db8255389e64',
+  'photo-1780391592801-5e8867523492',
+  'photo-1589891685391-b37508e8df4c',
+])
 const starterProperties = [
   { title: 'The Cedar House', location: 'Kasauli', price: '₹ 4.85 Cr', type: 'Villa', area: '3,200 sq. ft.', address: 'Manki Point Road, Kasauli, Himachal Pradesh', image: "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/20/Kasauli_Circuit_House.jpg/1920px-Kasauli_Circuit_House.jpg", gallery: ["https://thumb.wikimedia.org/wikipedia/commons/thumb/2/20/Kasauli_Circuit_House.jpg/1920px-Kasauli_Circuit_House.jpg","https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fe/Government_circuit_house%2C_Kasauli%2CIndia.jpg/1920px-Government_circuit_house%2C_Kasauli%2CIndia.jpg","https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4b/Landscape_around_Cantonment_area%2CKasauli_%2CIndia.jpg/1920px-Landscape_around_Cantonment_area%2CKasauli_%2CIndia.jpg"], description: 'A considered mountain residence where warm cedar, generous glazing, and quiet outdoor spaces frame the best of Kasauli. Designed for slow weekends and effortless hosting.', amenities: ['Mountain views', 'Private garden', 'Fireplace lounge', 'Solar backup', 'Staff room'], specs: [{ label: 'Bedrooms', value: '4' }, { label: 'Bathrooms', value: '4.5' }, { label: 'Plot size', value: '8,900 sq. ft.' }, { label: 'Year built', value: '2023' }], nearby: ['Kasauli Club · 8 min', 'Lawrence School · 14 min', 'Kasauli Market · 10 min', 'Gilbert Trail · 12 min'], video: 'https://cdn.coverr.co/videos/coverr-aerial-view-of-the-mountains-1577/1080p.mp4' },
   { title: 'Pinecrest Estate', location: 'Shimla', price: '₹ 7.20 Cr', type: 'Estate', area: '5,850 sq. ft.', address: 'Mashobra Road, Shimla, Himachal Pradesh', image: "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5a/Shimla_skyline.jpg/1920px-Shimla_skyline.jpg", gallery: ["https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5a/Shimla_skyline.jpg/1920px-Shimla_skyline.jpg","https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d3/Cityscape_of_Shimla.jpg/1920px-Cityscape_of_Shimla.jpg","https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/The_Ridge_Shimla_4.jpg/1920px-The_Ridge_Shimla_4.jpg"], description: 'A private estate above Shimla with layered lawns, forest-facing rooms, and a distinctly residential sense of arrival. A rare long-term base in the hills.', amenities: ['Forest outlook', 'Double-height living', 'Home office', 'Covered parking', 'Guest suite'], specs: [{ label: 'Bedrooms', value: '5' }, { label: 'Bathrooms', value: '5' }, { label: 'Plot size', value: '1.4 acres' }, { label: 'Year built', value: '2022' }], nearby: ['Theog Market · 16 min', 'Bishop Cotton School · 24 min', 'IGMC Shimla · 22 min', 'Craignano Nature Park · 8 min'] },
@@ -47,7 +47,19 @@ async function getDb() {
 function serialize(property) {
   if (!property) return property
   const { _id, ...safe } = property
-  return safe
+  const normalizeImage = (image) => {
+    if (typeof image !== 'string') return image
+    const imageId = image.match(/photo-\d+-[a-f\d]+/i)?.[0]
+    return imageId && unavailablePropertyImageIds.has(imageId)
+      ? unavailablePropertyImage
+      : image
+  }
+  return {
+    ...safe,
+    ...(typeof safe.image === 'string' ? { image: normalizeImage(safe.image) } : {}),
+    ...(Array.isArray(safe.gallery) ? { gallery: safe.gallery.map(normalizeImage) } : {}),
+    ...(Array.isArray(safe.photos) ? { photos: safe.photos.map(normalizeImage) } : {}),
+  }
 }
 
 function listingToProperty(listing) {
@@ -76,6 +88,9 @@ function listingToProperty(listing) {
       listing.propertyAge ? { label: 'Age', value: String(listing.propertyAge) } : null,
     ].filter(Boolean),
     nearby: listing.landmark ? [listing.landmark] : [],
+    latitude: listing.latitude ?? null,
+    longitude: listing.longitude ?? null,
+    coordinatePrecision: listing.coordinatePrecision || null,
     video: listing.video || '',
     virtualTourUrl: listing.virtualTourUrl || '',
     bedrooms: listing.bedrooms || '',
@@ -86,8 +101,9 @@ function listingToProperty(listing) {
     featured: !!listing.featured,
     verified: !!listing.verified,
     sourceListingId: listing.listingId,
-    status: 'published',
+    status: listing.publicationStatus || 'published',
     createdAt: listing.createdAt || new Date().toISOString(),
+    updatedAt: listing.updatedAt || listing.createdAt || new Date().toISOString(),
   }
 }
 
@@ -326,9 +342,6 @@ function databaseUnavailable(error) {
   return response({ error: errorMessage }, 503)
 }
 
-const adminEmail = () => String(process.env.ADMIN_USERNAME || '').trim().toLowerCase()
-const adminPassword = () => String(process.env.ADMIN_PASSWORD || '')
-const adminSecret = () => process.env.ADMIN_SESSION_SECRET || adminPassword()
 const oauthSecret = () => process.env.GOOGLE_OAUTH_SESSION_SECRET || ''
 function googleOAuthCredentials(role) {
   const rolePrefix = role === 'admin' ? 'GOOGLE_ADMIN' : role === 'agent' ? 'GOOGLE_AGENT' : 'GOOGLE'
@@ -353,7 +366,12 @@ function googleRoleFor(email) {
 }
 
 function googleSession(request) {
-  return verifySession(request, 'himbhumi_session', oauthSecret(), null)
+  const session = verifySession(request, 'himbhumi_session', oauthSecret(), null)
+  if (session?.role !== 'admin') return session
+  return {
+    ...session,
+    role: googleRoleFor(session.email),
+  }
 }
 
 function accountSession(request) {
@@ -377,23 +395,7 @@ function agentOwnerIds(request) {
   return [...new Set(ownerIds.filter(Boolean))]
 }
 
-function adminToken() {
-  const payload = Buffer.from(JSON.stringify({ email: adminEmail(), exp: Date.now() + 8 * 60 * 60 * 1000 })).toString('base64url')
-  const signature = createHmac('sha256', adminSecret()).update(payload).digest('base64url')
-  return `${payload}.${signature}`
-}
-function isAdmin(request) {
-  if (googleSession(request)?.role === 'admin') return true
-  const token = request.cookies.get('himbhumi_admin')?.value || ''
-  const [payload, signature] = token.split('.')
-  if (!payload || !signature || !adminSecret()) return false
-  const expected = createHmac('sha256', adminSecret()).update(payload).digest('base64url')
-  if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return false
-  try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString())
-    return data.email === adminEmail() && data.exp > Date.now()
-  } catch { return false }
-}
+function isAdmin(request) { return googleSession(request)?.role === 'admin' }
 function requireAdmin(request) { return isAdmin(request) ? null : response({ error: 'Admin authentication required' }, 401) }
 
 function isValidEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim()) }
@@ -452,10 +454,6 @@ function inboxActor(request) {
     }
   }
 
-  if (isAdmin(request)) {
-    const email = adminEmail()
-    return { id: `admin:${email}`, email, name: 'HimBhumi administrator', role: 'admin' }
-  }
   return null
 }
 
@@ -469,7 +467,7 @@ async function resolveInboxRecipient(db, actor, emailInput, roleInput) {
   if (!isValidEmail(email) || !['user', 'agent', 'admin'].includes(role) || email === actor.email) return null
 
   if (role === 'admin') {
-    if (email !== adminEmail() && !adminGoogleEmails().includes(email)) return null
+    if (!adminGoogleEmails().includes(email)) return null
     return { id: `admin:${email}`, email, name: 'HimBhumi administrator', role }
   }
 
@@ -502,7 +500,7 @@ async function resolvePropertyRecipient(db, property, actor) {
     }
   }
 
-  const admin = adminEmail() || adminGoogleEmails()[0]
+  const admin = adminGoogleEmails()[0]
   if (!admin) throw new Error('No administrator inbox recipient is configured.')
   return { id: `admin:${admin}`, email: admin, name: actor.role === 'admin' ? actor.name : 'HimBhumi administrator', role: 'admin' }
 }
@@ -634,10 +632,22 @@ function propertyEditFields(body) {
   const allowed = [
     'title', 'category', 'listingType', 'price', 'negotiable', 'area', 'areaUnit',
     'bedrooms', 'bathrooms', 'propertyAge', 'description', 'state', 'district',
-    'tehsil', 'city', 'locality', 'locationId', 'landmark', 'mapsLink', 'photos',
+    'tehsil', 'city', 'locality', 'locationId', 'landmark', 'mapsLink', 'latitude', 'longitude', 'photos',
     'image', 'video', 'virtualTourUrl', 'amenities',
   ]
   return Object.fromEntries(allowed.filter((key) => Object.hasOwn(body, key)).map((key) => [key, body[key]]))
+}
+
+function propertyCoordinates(input) {
+  const latitudeInput = String(input.latitude ?? '').trim()
+  const longitudeInput = String(input.longitude ?? '').trim()
+  if (!latitudeInput && !longitudeInput) return { latitude: null, longitude: null }
+  if (!latitudeInput || !longitudeInput) throw new Error('Choose both latitude and longitude for the property pin.')
+  const latitude = Number(latitudeInput)
+  const longitude = Number(longitudeInput)
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error('Latitude must be between -90 and 90.')
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error('Longitude must be between -180 and 180.')
+  return { latitude, longitude }
 }
 
 const smtpConfigured = () => process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
@@ -772,9 +782,75 @@ export async function GET(request, { params }) {
       }
 
       const email = String(profile.email).trim().toLowerCase()
-      const role = googleRoleFor(email)
+      let role = googleRoleFor(email)
       if (requestedRole === 'admin' && role !== 'admin') return redirectWithError('admin_not_allowed')
-      if (requestedRole === 'agent' && role !== 'agent') return redirectWithError('agent_not_allowed')
+      let agentApplicationStatus = ''
+      if (requestedRole === 'agent' && role !== 'agent') {
+        const now = new Date().toISOString()
+        try {
+          const db = await getDb()
+          const agents = db.collection('agents')
+          await agents.createIndex({ email: 1 }, { unique: true, name: 'agent_email_unique' })
+          let agent = await agents.findOne({ email })
+          if (!agent) {
+            try {
+              await agents.insertOne({
+                id: randomUUID(),
+                name: String(profile.name || email).slice(0, 120),
+                email,
+                phone: '',
+                googleSub: profile.sub,
+                applicationSource: 'google',
+                status: 'pending',
+                createdAt: now,
+                updatedAt: now,
+              })
+            } catch (error) {
+              if (error?.code !== 11000) throw error
+            }
+            agent = await agents.findOne({ email })
+          }
+          if (agent?.status === 'rejected') {
+            await agents.updateOne(
+              { email, status: 'rejected' },
+              {
+                $set: {
+                  name: String(profile.name || email).slice(0, 120),
+                  googleSub: profile.sub,
+                  applicationSource: 'google',
+                  status: 'pending',
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                $unset: { reviewedAt: '' },
+              },
+            )
+            agent = await agents.findOne({ email })
+          } else if (agent?.status === 'pending') {
+            await agents.updateOne(
+              { email, status: 'pending' },
+              {
+                $set: {
+                  name: String(profile.name || email).slice(0, 120),
+                  googleSub: profile.sub,
+                  applicationSource: 'google',
+                  updatedAt: now,
+                },
+              },
+            )
+            agent = await agents.findOne({ email })
+          }
+          if (agent?.status === 'approved') {
+            if (!agent.googleSub || agent.googleSub === profile.sub) role = 'agent'
+            else agentApplicationStatus = 'identity_mismatch'
+          } else {
+            agentApplicationStatus = agent?.status || 'pending'
+          }
+        } catch (error) {
+          console.error('Google agent application could not be saved:', { name: error?.name || 'DatabaseError', code: error?.code || null })
+          return redirectWithError('agent_application_unavailable')
+        }
+      }
 
       const account = {
         googleSub: profile.sub,
@@ -804,7 +880,15 @@ export async function GET(request, { params }) {
         role,
         exp: Date.now() + 8 * 60 * 60 * 1000,
       }, oauthSecret())
-      const destination = role === 'admin' ? '/admin' : role === 'agent' ? '/agent' : '/login?success=1'
+      const destination = role === 'admin'
+        ? '/admin'
+        : role === 'agent'
+          ? '/agent'
+          : agentApplicationStatus === 'identity_mismatch'
+            ? '/agent?error=agent_identity_mismatch'
+          : agentApplicationStatus
+            ? '/agent?application=pending'
+            : '/login?success=1'
       const result = NextResponse.redirect(new URL(destination, appOrigin))
       result.cookies.set('himbhumi_session', session, {
         httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production',
@@ -820,8 +904,22 @@ export async function GET(request, { params }) {
       if (!googleOAuthConfigured(role)) {
         return NextResponse.redirect(new URL('/login?error=oauth_not_configured', appOrigin))
       }
-      const state = `${randomUUID()}.${role}`
       const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${appOrigin}/api/auth/google/callback`
+      const canonicalOrigin = new URL(redirectUri).origin
+      const requestHost = (request.headers.get('x-forwarded-host') || request.headers.get('host') || url.host)
+        .split(',')[0]
+        .trim()
+        .toLowerCase()
+      const requestProtocol = (request.headers.get('x-forwarded-proto') || url.protocol.slice(0, -1))
+        .split(',')[0]
+        .trim()
+        .toLowerCase()
+      if (`${requestProtocol}://${requestHost}` !== canonicalOrigin) {
+        const canonicalAuthUrl = new URL('/api/auth/google', canonicalOrigin)
+        canonicalAuthUrl.searchParams.set('role', role)
+        return NextResponse.redirect(canonicalAuthUrl)
+      }
+      const state = `${randomUUID()}.${role}`
       const authorizeUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
       authorizeUrl.search = new URLSearchParams({
         client_id: credentials.clientId,
@@ -846,8 +944,49 @@ export async function GET(request, { params }) {
     }
     if (parts[0] === 'admin' && parts[1] === 'session') return isAdmin(request) ? response({ authenticated: true }) : response({ error: 'Not authenticated' }, 401)
     if (parts[0] === 'agent' && parts[1] === 'session') {
-      const session = agentSession(request)
-      return response({ authenticated: !!session, username: session?.email || session?.username || '', name: session?.name || '', picture: session?.picture || '', role: session?.role || (session ? 'agent' : '') })
+      let session = agentSession(request)
+      if (session) {
+        return response({ authenticated: true, username: session.email || session.username || '', name: session.name || '', picture: session.picture || '', role: session.role || 'agent' })
+      }
+
+      const google = googleSession(request)
+      if (google?.role !== 'user' || !google.email) {
+        return response({ authenticated: false })
+      }
+
+      try {
+        const db = await getDb()
+        const agent = await db.collection('agents').findOne({ email: String(google.email).trim().toLowerCase() })
+        if (!agent) return response({ authenticated: false })
+        if (agent.status === 'approved' && (!agent.googleSub || agent.googleSub === google.userId)) {
+          session = {
+            ...google,
+            role: 'agent',
+            exp: Math.min(google.exp, Date.now() + 8 * 60 * 60 * 1000),
+          }
+          const result = response({ authenticated: true, username: session.email, name: session.name || '', picture: session.picture || '', role: 'agent' })
+          result.cookies.set('himbhumi_session', signedToken(session, oauthSecret()), {
+            httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production',
+            maxAge: Math.max(0, Math.floor((session.exp - Date.now()) / 1000)), path: '/',
+          })
+          return result
+        }
+        if (agent.status === 'approved' && agent.googleSub && agent.googleSub !== google.userId) {
+          return response({
+            authenticated: false,
+            application: { status: 'identity_mismatch', email: agent.email, name: agent.name || agent.email },
+          })
+        }
+        if (agent.status === 'pending' || agent.status === 'rejected') {
+          return response({
+            authenticated: false,
+            application: { status: agent.status, email: agent.email, name: agent.name || agent.email },
+          })
+        }
+        return response({ authenticated: false })
+      } catch (error) {
+        return databaseUnavailable(error)
+      }
     }
     if (parts[0] === 'inbox') {
       const actor = inboxActor(request)
@@ -957,7 +1096,7 @@ export async function GET(request, { params }) {
     if (parts[0] === 'agents') {
       try {
         const agents = await db.collection('agents').find({}).sort({ createdAt: -1 }).toArray()
-        return response({ agents: agents.map(({ id, name, email, phone, status, createdAt, reviewedAt }) => ({ id, name, email, phone, status, createdAt, reviewedAt })) })
+        return response({ agents: agents.map(({ id, name, email, phone, status, applicationSource, createdAt, reviewedAt }) => ({ id, name, email, phone, status, applicationSource, createdAt, reviewedAt })) })
       } catch (error) {
         return databaseUnavailable(error)
       }
@@ -966,7 +1105,9 @@ export async function GET(request, { params }) {
     if (parts[0] === 'properties') {
       await ensureSeed(db)
       if (parts[1]) {
-        const property = await db.collection('properties').findOne({ id: parts[1] })
+        const propertyQuery = { id: parts[1] }
+        if (!isAdmin(request)) propertyQuery.status = { $in: ['published', 'approved'] }
+        const property = await db.collection('properties').findOne(propertyQuery)
         return property ? response(serialize(property)) : response({ error: 'Property not found' }, 404)
       }
       const selected = url.searchParams.get('location')
@@ -979,15 +1120,16 @@ export async function GET(request, { params }) {
       const matchingLocations = location ? getLocationDescendants(location, locationCatalog) : []
       const matchingIds = matchingLocations.map((item) => item.id)
       const matchingNames = matchingLocations.map((item) => item.name)
-      const query = location ? {
-        $or: [
+      const query = {
+        ...(!isAdmin(request) ? { status: { $in: ['published', 'approved'] } } : {}),
+        ...(location ? { $or: [
           { locationId: { $in: matchingIds } },
           { location: { $in: matchingNames } },
           { city: { $in: matchingNames } },
           { locality: { $in: matchingNames } },
           { district: { $in: matchingNames } },
-        ],
-      } : {}
+        ] } : {}),
+      }
       const results = await db.collection('properties').find(query).sort({ createdAt: -1 }).toArray()
       const filtered = filterPropertiesByFacets(results, url.searchParams)
       return response({ properties: filtered.map(serialize), locations: LEGACY_LOCATION_NAMES })
@@ -1119,6 +1261,7 @@ export async function POST(request, { params }) {
           name,
           email,
           phone,
+          applicationSource: 'email',
           passwordSalt: salt,
           passwordHash: hashAgentPassword(password, salt),
           status: 'pending',
@@ -1189,11 +1332,7 @@ export async function POST(request, { params }) {
       return response({ recorded: true, views: property?.views || 0 })
     }
     if (parts[0] === 'admin' && parts[1] === 'login') {
-      if (!adminEmail() || !adminPassword()) return response({ error: 'Admin credentials are not configured' }, 503)
-      if (String(body.email || '').trim().toLowerCase() !== adminEmail() || String(body.password || '') !== adminPassword()) return response({ error: 'Invalid admin credentials' }, 401)
-      const result = response({ authenticated: true })
-      result.cookies.set('himbhumi_admin', adminToken(), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 8 * 60 * 60, path: '/' })
-      return result
+      return response({ error: 'Password-based administrator sign-in is disabled. Use an authorized Google account.' }, 403)
     }
     if (parts[0] === 'admin' && parts[1] === 'logout') {
       const result = response({ authenticated: false })
@@ -1437,11 +1576,14 @@ export async function POST(request, { params }) {
       if (!isValidEmail(body.email)) return response({ error: 'A valid email address is required' }, 400)
       if (!body.emailVerified) return response({ error: 'Email verification is required before submitting' }, 400)
       if (!body.authorized) return response({ error: 'Please confirm you are authorized to advertise this property' }, 400)
+      let coordinates
+      try { coordinates = propertyCoordinates(body) } catch (error) { return response({ error: error.message }, 400) }
       const listingId = `HB-${randomUUID().slice(0, 6).toUpperCase()}`
       const listing = {
         id: randomUUID(),
         listingId,
         ...body,
+        ...coordinates,
         status: 'pending_review',
         verified: false,
         featured: false,
@@ -1516,6 +1658,14 @@ export async function PUT(request, { params }) {
       if (!listing) return response({ error: 'Listing not found or you do not have permission to edit it.' }, 404)
       const ownerId = listing.agentOwnerId
       const updates = propertyEditFields(body)
+      if (Object.hasOwn(body, 'latitude') || Object.hasOwn(body, 'longitude')) {
+        try {
+          Object.assign(updates, propertyCoordinates({
+            latitude: Object.hasOwn(body, 'latitude') ? body.latitude : listing.latitude,
+            longitude: Object.hasOwn(body, 'longitude') ? body.longitude : listing.longitude,
+          }))
+        } catch (error) { return response({ error: error.message }, 400) }
+      }
       if (updates.virtualTourUrl && !isSupportedTourUrl(updates.virtualTourUrl)) {
         return response({ error: 'Use a valid HTTPS Matterport, Kuula, or Pannellum tour URL.' }, 400)
       }
@@ -1534,7 +1684,7 @@ export async function PUT(request, { params }) {
         const existing = await db.collection('properties').findOne({ id: merged.id })
         await db.collection('properties').updateOne(
           { id: merged.id, agentOwnerId: ownerId },
-          { $set: { ...listingToProperty(merged), agentOwnerId: ownerId, views: existing?.views || 0 } },
+          { $set: { ...listingToProperty(merged), status: merged.publicationStatus || existing?.status || 'published', agentOwnerId: ownerId, views: existing?.views || 0 } },
           { upsert: true },
         )
       }
@@ -1546,7 +1696,39 @@ export async function PUT(request, { params }) {
     try { db = await getDb() } catch (databaseError) { return databaseUnavailable(databaseError) }
     const locationCatalog = await getLocationCatalog(db)
     if (parts[0] === 'inquiries' && parts[1]) {
-      const updates = { ...body, updatedAt: new Date().toISOString() }
+      const allowedStages = ['new', 'contacted', 'qualified', 'viewing_scheduled', 'offer_made', 'closed', 'lost']
+      const updates = {}
+      if (Object.prototype.hasOwnProperty.call(body, 'status')) {
+        if (typeof body.status !== 'string' || !allowedStages.includes(body.status)) {
+          return response({ error: 'Choose a valid CRM pipeline stage.' }, 400)
+        }
+        updates.status = body.status
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'notes')) {
+        if (typeof body.notes !== 'string' || body.notes.length > 2000) {
+          return response({ error: 'CRM notes must be text no longer than 2,000 characters.' }, 400)
+        }
+        updates.notes = body.notes.trim()
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'followUpAt')) {
+        const followUpAt = body.followUpAt
+        const parsedDate = typeof followUpAt === 'string' && followUpAt
+          ? new Date(`${followUpAt}T00:00:00.000Z`)
+          : null
+        if (
+          typeof followUpAt !== 'string'
+          || (followUpAt !== '' && (
+            !/^\d{4}-\d{2}-\d{2}$/.test(followUpAt)
+            || Number.isNaN(parsedDate.getTime())
+            || parsedDate.toISOString().slice(0, 10) !== followUpAt
+          ))
+        ) {
+          return response({ error: 'Choose a valid follow-up date.' }, 400)
+        }
+        updates.followUpAt = followUpAt
+      }
+      if (!Object.keys(updates).length) return response({ error: 'No CRM updates were provided.' }, 400)
+      updates.updatedAt = new Date().toISOString()
       const result = await db.collection('inquiries').updateOne({ id: parts[1] }, { $set: updates })
       return result.matchedCount ? response({ success: true }) : response({ error: 'Enquiry not found' }, 404)
     }
@@ -1556,6 +1738,16 @@ export async function PUT(request, { params }) {
     }
     if (parts[0] === 'listings' && parts[1]) {
       const { id, _id, ...updates } = body
+      const existing = await db.collection('listings').findOne({ id: parts[1] })
+      if (!existing) return response({ error: 'Listing not found' }, 404)
+      if (Object.hasOwn(updates, 'latitude') || Object.hasOwn(updates, 'longitude')) {
+        try {
+          Object.assign(updates, propertyCoordinates({
+            latitude: Object.hasOwn(updates, 'latitude') ? updates.latitude : existing.latitude,
+            longitude: Object.hasOwn(updates, 'longitude') ? updates.longitude : existing.longitude,
+          }))
+        } catch (error) { return response({ error: error.message }, 400) }
+      }
       if (updates.locationId) {
         const location = locationCatalog.find((item) => item.id === updates.locationId)
         if (!location || !['city', 'village'].includes(location.type)) {
@@ -1563,16 +1755,19 @@ export async function PUT(request, { params }) {
         }
         Object.assign(updates, propertyLocationFields(location, locationCatalog))
       }
-      const existing = await db.collection('listings').findOne({ id: parts[1] })
-      if (!existing) return response({ error: 'Listing not found' }, 404)
       await db.collection('listings').updateOne({ id: parts[1] }, { $set: { ...updates, updatedAt: new Date().toISOString() } })
       const merged = { ...existing, ...updates }
       // Publish on approve: keep a public property in sync with the approved listing.
       if (merged.status === 'approved') {
         const property = await db.collection('properties').findOne({ id: merged.id })
+        const publicationStatus = merged.publicationStatus || property?.status || 'published'
+        await db.collection('listings').updateOne(
+          { id: merged.id },
+          { $set: { publicationStatus, updatedAt: new Date().toISOString() } },
+        )
         await db.collection('properties').updateOne(
           { id: merged.id },
-          { $set: { ...listingToProperty(merged), ...(merged.agentOwnerId ? { agentOwnerId: merged.agentOwnerId } : {}), views: property?.views || 0 } },
+          { $set: { ...listingToProperty({ ...merged, publicationStatus }), ...(merged.agentOwnerId ? { agentOwnerId: merged.agentOwnerId } : {}), views: property?.views || 0 } },
           { upsert: true },
         )
       } else {
@@ -1582,13 +1777,29 @@ export async function PUT(request, { params }) {
     }
     if (parts[0] !== 'properties' || !parts[1]) return response({ error: 'Route not found' }, 404)
     const { id, _id, ...updates } = body
+    if (Object.hasOwn(updates, 'status') && !['published', 'draft', 'sold'].includes(updates.status)) {
+      return response({ error: 'Property status must be published, draft, or sold.' }, 400)
+    }
+    const existingProperty = await db.collection('properties').findOne({ id: parts[1] })
+    if (!existingProperty) return response({ error: 'Property not found' }, 404)
+    if (Object.hasOwn(updates, 'latitude') || Object.hasOwn(updates, 'longitude')) {
+      try {
+        Object.assign(updates, propertyCoordinates({
+          latitude: Object.hasOwn(updates, 'latitude') ? updates.latitude : existingProperty.latitude,
+          longitude: Object.hasOwn(updates, 'longitude') ? updates.longitude : existingProperty.longitude,
+        }))
+      } catch (error) { return response({ error: error.message }, 400) }
+    }
     if (updates.locationId) {
       const location = locationCatalog.find((item) => item.id === updates.locationId)
       if (!location) return response({ error: 'Select an existing location from the location catalog.' }, 400)
       Object.assign(updates, propertyLocationFields(location, locationCatalog))
     }
     const result = await db.collection('properties').updateOne({ id: parts[1] }, { $set: { ...updates, updatedAt: new Date().toISOString() } })
-    return result.matchedCount ? response({ property: serialize({ ...body, id: parts[1] }) }) : response({ error: 'Property not found' }, 404)
+    if (Object.hasOwn(updates, 'status')) {
+      await db.collection('listings').updateOne({ id: parts[1] }, { $set: { publicationStatus: updates.status, updatedAt: new Date().toISOString() } })
+    }
+    return result.matchedCount ? response({ property: serialize({ ...existingProperty, ...updates, id: parts[1] }) }) : response({ error: 'Property not found' }, 404)
   } catch (error) { return response({ error: error?.message || 'Server error' }, 500) }
 }
 
